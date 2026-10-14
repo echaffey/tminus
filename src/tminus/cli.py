@@ -6,7 +6,8 @@ import sys
 from typing import List, Optional, Tuple
 
 from . import DependencyType, InvalidAgeError, Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, prune, submit, wait_all
-from .cleanup import parse_age
+from . import cleanup
+from .cleanup import Policy, parse_age
 
 
 def _tag(text: str) -> Tuple[str, str]:
@@ -90,9 +91,30 @@ def _build_parser() -> argparse.ArgumentParser:
     wait_cmd.add_argument("--timeout", type=float, metavar="SECONDS", help="give up after this long")
     wait_cmd.set_defaults(handler=_wait)
 
-    cancel_cmd = commands.add_parser("cancel", help="cancel jobs (finished jobs are skipped)")
-    cancel_cmd.add_argument("job_ids", nargs="+", metavar="JOBID")
+    cancel_cmd = commands.add_parser(
+        "cancel",
+        help="cancel jobs (finished jobs are skipped)",
+        description="Cancel the given jobs, or every active tracked job with the given tags. "
+        "Selecting by --tag is a dry run unless --yes is given.",
+    )
+    cancel_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
+    _add_tag_option(cancel_cmd, "cancel every active tracked job with this tag (repeatable; all must match)")
+    cancel_cmd.add_argument("--yes", action="store_true", help="actually cancel the jobs selected by --tag")
     cancel_cmd.set_defaults(handler=_cancel)
+
+    clean_cmd = commands.add_parser(
+        "clean",
+        help="delete finished jobs' logs and scratch paths (dry run unless --yes)",
+        description="Delete the log files and scratch paths of finished tracked jobs with the given "
+        "tags. Active jobs and working directories are never touched. Lists what would be deleted "
+        "unless --yes is given.",
+    )
+    clean_cmd.add_argument("--tag", dest="tags", type=_tag, action="append", required=True,
+                           metavar="KEY=VALUE", help="select jobs with this tag (repeatable; all must match)")
+    clean_cmd.add_argument("--policy", choices=[p.value for p in Policy], default=Policy.ON_SUCCESS.value,
+                           help="which finished jobs to clean up (default: on_success)")
+    clean_cmd.add_argument("--yes", action="store_true", help="actually delete the files")
+    clean_cmd.set_defaults(handler=_clean)
 
     update_cmd = commands.add_parser("update", help="change a submitted job's time limit, partition, ...")
     update_cmd.add_argument("job_id", metavar="JOBID")
@@ -175,12 +197,42 @@ def _wait(args: argparse.Namespace) -> int:
 
 
 def _cancel(args: argparse.Namespace) -> int:
+    if not args.job_ids and not args.tags:
+        raise TminusError("give at least one JOBID or --tag")
     backend = get_backend()
     for job_id in args.job_ids:
         if Job(job_id, None, backend).cancel():
             print(f"cancelled {job_id}")
         else:
             print(f"{job_id} already finished")
+    if args.tags:
+        selected = cleanup.cancel(dict(args.tags), backend=backend, dry_run=not args.yes)
+        verb = "cancelled" if args.yes else "would cancel"
+        for job_id in selected:
+            print(f"{verb} {job_id}")
+        if not selected:
+            print("no active jobs with those tags")
+        elif not args.yes:
+            print("run again with --yes to cancel them")
+    return 0
+
+
+def _clean(args: argparse.Namespace) -> int:
+    results = cleanup.purge(dict(args.tags), args.policy, dry_run=not args.yes)
+    verb = "deleted" if args.yes else "would delete"
+    count = 0
+    for result in results:
+        for path in result.deleted:
+            print(f"{verb} {path}")
+            count += 1
+        for path in result.skipped:
+            print(f"skipped {path} (filename pattern tminus cannot expand)")
+        for path in result.refused:
+            print(f"refused {path} (never deletes the root or home directory)")
+    if count and not args.yes:
+        print("run again with --yes to delete them")
+    elif not count:
+        print("nothing to delete")
     return 0
 
 

@@ -52,6 +52,9 @@ class JobSpec:
     single words (letters, digits, and ``_ . : / @ + -``). ``depends_on``
     lists jobs (Job handles or job ids) that must reach the condition in
     ``dependency_type`` (default: afterok) before this one may start.
+    ``scratch_paths`` are files or directories the job owns (per-job scratch
+    space, for example) that ``tminus.cleanup.purge`` may delete along with
+    its logs; they accept the same ``%j``/``%x``/``%u`` patterns as ``output``.
     """
 
     command: Optional[str] = None
@@ -72,6 +75,7 @@ class JobSpec:
     tags: Dict[str, str] = field(default_factory=dict)
     depends_on: List[Any] = field(default_factory=list)
     dependency_type: DependencyType = DependencyType.AFTEROK
+    scratch_paths: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Normalise Job handles to ids and strings to DependencyType (the dataclass is frozen).

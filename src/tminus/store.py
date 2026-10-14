@@ -58,7 +58,19 @@ _MIGRATIONS = [
     );
     CREATE INDEX events_by_job ON events (job, at);
     """,
+    """
+    ALTER TABLE jobs ADD COLUMN submit_dir TEXT;
+    """,
 ]
+
+
+@dataclass(frozen=True)
+class TrackedJob:
+    """A job as the Store remembers it."""
+
+    job_id: str
+    spec: JobSpec
+    submit_dir: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -96,8 +108,10 @@ class Store:
         self._clock = clock
         self._migrated = False
 
-    def record_submission(self, backend: str, job_id: str, spec: JobSpec) -> None:
-        """Remember that ``backend`` accepted ``spec`` as ``job_id``.
+    def record_submission(
+        self, backend: str, job_id: str, spec: JobSpec, submit_dir: Optional[str] = None
+    ) -> None:
+        """Remember that ``backend`` accepted ``spec`` as ``job_id``, submitted from ``submit_dir``.
 
         Slurm reuses job ids once its counter wraps, so a new submission with a
         known id replaces the old (long finished) record and its tags.
@@ -105,17 +119,17 @@ class Store:
         with self._transaction() as db:
             db.execute("DELETE FROM jobs WHERE backend = ? AND job_id = ?", (backend, job_id))
             cursor = db.execute(
-                "INSERT INTO jobs (backend, job_id, spec, submitted_at) VALUES (?, ?, ?, ?)",
-                (backend, job_id, json.dumps(spec.to_dict(), sort_keys=True), self._clock()),
+                "INSERT INTO jobs (backend, job_id, spec, submitted_at, submit_dir) VALUES (?, ?, ?, ?, ?)",
+                (backend, job_id, json.dumps(spec.to_dict(), sort_keys=True), self._clock(), submit_dir),
             )
             db.executemany(
                 "INSERT INTO tags (job, key, value) VALUES (?, ?, ?)",
                 [(cursor.lastrowid, key, value) for key, value in sorted(spec.tags.items())],
             )
 
-    def find(self, backend: str, tags: Optional[Dict[str, str]] = None) -> List[Tuple[str, JobSpec]]:
-        """``(job_id, spec)`` for every job on ``backend`` carrying all of ``tags``, oldest first."""
-        sql = "SELECT job_id, spec FROM jobs WHERE backend = ?"
+    def find(self, backend: str, tags: Optional[Dict[str, str]] = None) -> List[TrackedJob]:
+        """Every job on ``backend`` carrying all of ``tags``, oldest first."""
+        sql = "SELECT job_id, spec, submit_dir FROM jobs WHERE backend = ?"
         params: list = [backend]
         for key, value in sorted((tags or {}).items()):
             sql += " AND id IN (SELECT job FROM tags WHERE key = ? AND value = ?)"
@@ -123,7 +137,8 @@ class Store:
         sql += " ORDER BY id"
         with self._transaction() as db:
             rows = db.execute(sql, params).fetchall()
-        return [(job_id, JobSpec.from_dict(json.loads(spec))) for job_id, spec in rows]
+        return [TrackedJob(job_id, JobSpec.from_dict(json.loads(spec)), submit_dir)
+                for job_id, spec, submit_dir in rows]
 
     def record_statuses(self, backend: str, statuses: Sequence[JobStatus]) -> None:
         """Append each status to its job's history if its state changed since the last one.

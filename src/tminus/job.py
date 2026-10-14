@@ -18,13 +18,16 @@ class Job:
     Job ids are strings because array tasks and heterogeneous jobs use ids
     such as ``"1234_7"`` and ``"1234+0"``. ``spec`` is None for a job tminus
     did not submit itself. ``status`` holds the last JobStatus seen by
-    ``refresh()``, or None before the first one.
+    ``refresh()``, or None before the first one. ``submit_dir`` is the
+    directory it was submitted from, when known; Slurm resolves relative log
+    paths against it.
     """
 
     job_id: str
     spec: Optional[JobSpec]
     backend: Backend
     status: Optional[JobStatus] = field(default=None, compare=False)
+    submit_dir: Optional[str] = field(default=None, compare=False)
 
     def refresh(self) -> JobStatus:
         """Ask the scheduler for this job's current status, remember it, and return it.

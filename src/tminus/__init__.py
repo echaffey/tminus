@@ -1,6 +1,7 @@
 """tminus: schedule, monitor, modify, clean up after, and report on Slurm jobs."""
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Optional, Sequence
 
 from .backend import get_backend
@@ -18,7 +19,8 @@ from .errors import (
     UnsatisfiableDependency,
     WaitTimeout,
 )
-from .cleanup import prune
+from . import cleanup
+from .cleanup import Policy, prune
 from .job import Job
 from . import aio
 from .monitor import PollPolicy, wait_all
@@ -40,6 +42,7 @@ __all__ = [
     "JobNotFound",
     "JobState",
     "JobStatus",
+    "Policy",
     "PollPolicy",
     "SlurmCommandError",
     "SlurmOutputError",
@@ -49,6 +52,7 @@ __all__ = [
     "UnsatisfiableDependency",
     "WaitTimeout",
     "aio",
+    "cleanup",
     "get_backend",
     "jobs",
     "prune",
@@ -69,9 +73,10 @@ def submit(spec: JobSpec, backend: Optional[Backend] = None, store: Optional[Sto
         backend = get_backend()
     if store is None:
         store = Store()
+    submit_dir = os.getcwd()
     job_id = backend.submit(spec)
-    store.record_submission(backend.name, job_id, spec)
-    return Job(job_id=job_id, spec=spec, backend=backend)
+    store.record_submission(backend.name, job_id, spec, submit_dir)
+    return Job(job_id=job_id, spec=spec, backend=backend, submit_dir=submit_dir)
 
 
 def jobs(
@@ -84,7 +89,10 @@ def jobs(
         backend = get_backend()
     if store is None:
         store = Store()
-    return [Job(job_id=job_id, spec=spec, backend=backend) for job_id, spec in store.find(backend.name, tags)]
+    return [
+        Job(job_id=tracked.job_id, spec=tracked.spec, backend=backend, submit_dir=tracked.submit_dir)
+        for tracked in store.find(backend.name, tags)
+    ]
 
 
 def status(job_ids: Sequence[str], backend: Optional[Backend] = None) -> Dict[str, JobStatus]:

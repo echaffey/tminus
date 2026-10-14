@@ -74,6 +74,53 @@ class FakeBackendAcrossProcessesTest(unittest.TestCase):
         self.assertEqual(rows, [[first.strip(), "PENDING"], [second.strip(), "PENDING"]])
 
 
+class CleanupCommandTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="tminus-test-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.env = {"TMINUS_BACKEND": "fake", "TMINUS_DB": os.path.join(self.tmp, "jobs.db")}
+        self.backend = FakeBackend()
+        patcher = mock.patch.dict(BACKENDS, {"fake": lambda: self.backend})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        store = tminus.Store(self.env["TMINUS_DB"])
+        spec = tminus.JobSpec(command="true", tags={"exp": "exp42"}, workdir=self.tmp, output="%j.out")
+        self.running = tminus.submit(spec, backend=self.backend, store=store).job_id
+        self.done = tminus.submit(spec, backend=self.backend, store=store).job_id
+        self.backend.set_state(self.running, JobState.RUNNING)
+        self.backend.set_state(self.done, JobState.COMPLETED)
+        self.log = os.path.join(self.tmp, f"{self.done}.out")
+        open(self.log, "w").close()
+
+    def test_cancel_by_tag_previews_and_needs_yes(self):
+        _, preview, _ = run_cli("cancel", "--tag", "exp=exp42", env=self.env)
+        before = self.backend.status([self.running])[self.running].state
+        status, out, _ = run_cli("cancel", "--tag", "exp=exp42", "--yes", env=self.env)
+
+        self.assertIn(f"would cancel {self.running}", preview)
+        self.assertIs(before, JobState.RUNNING)
+        self.assertEqual(status, 0)
+        self.assertIn(f"cancelled {self.running}", out)
+        self.assertIs(self.backend.status([self.running])[self.running].state, JobState.CANCELLED)
+
+    def test_clean_previews_and_needs_yes(self):
+        _, preview, _ = run_cli("clean", "--tag", "exp=exp42", "--policy", "on_success", env=self.env)
+        existed = os.path.exists(self.log)
+        status, out, _ = run_cli("clean", "--tag", "exp=exp42", "--policy", "on_success", "--yes", env=self.env)
+
+        self.assertIn(f"would delete {self.log}", preview)
+        self.assertTrue(existed)
+        self.assertEqual(status, 0)
+        self.assertIn(f"deleted {self.log}", out)
+        self.assertFalse(os.path.exists(self.log))
+
+    def test_clean_requires_a_tag(self):
+        status, _, err = run_cli("clean", "--policy", "always", env=self.env)
+
+        self.assertEqual(status, 2)
+        self.assertIn("--tag", err)
+
+
 class StatusCommandTest(unittest.TestCase):
     def setUp(self):
         # Every CLI run builds its backend afresh, so hand it this prepared one.
