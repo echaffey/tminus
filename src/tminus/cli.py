@@ -3,9 +3,22 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from . import JobSpec, TminusError, __version__, status, submit
+from . import JobSpec, TminusError, __version__, jobs, status, submit
+
+
+def _tag(text: str) -> Tuple[str, str]:
+    key, sep, value = text.partition("=")
+    if not sep or not key or not value:
+        raise argparse.ArgumentTypeError(f"expected KEY=VALUE, got {text!r}")
+    return key, value
+
+
+def _add_tag_option(parser: argparse.ArgumentParser, help_text: str) -> None:
+    parser.add_argument(
+        "--tag", dest="tags", type=_tag, action="append", default=[], metavar="KEY=VALUE", help=help_text
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -41,10 +54,12 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="ARG",
         help="extra sbatch argument, passed through as-is (repeatable), e.g. --sbatch-arg=--exclusive",
     )
+    _add_tag_option(submit_cmd, "label the job (repeatable), e.g. --tag exp=exp42")
     submit_cmd.set_defaults(handler=_submit)
 
     status_cmd = commands.add_parser("status", help="show the current state of jobs")
-    status_cmd.add_argument("job_ids", nargs="+", metavar="JOBID")
+    status_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
+    _add_tag_option(status_cmd, "include every tracked job with this tag (repeatable; all must match)")
     status_cmd.set_defaults(handler=_status)
     return parser
 
@@ -66,21 +81,27 @@ def _submit(args: argparse.Namespace) -> int:
         output=args.output,
         error=args.error,
         extra_args=args.extra_args,
+        tags=dict(args.tags),
     )
     print(submit(spec).job_id)
     return 0
 
 
 def _status(args: argparse.Namespace) -> int:
-    statuses = status(args.job_ids)
+    job_ids = list(args.job_ids)
+    if args.tags:
+        job_ids += [job.job_id for job in jobs(tags=dict(args.tags)) if job.job_id not in job_ids]
+    elif not job_ids:
+        raise TminusError("give at least one JOBID or --tag")
+    statuses = status(job_ids)
     rows = [["JOBID", "STATE", "EXIT", "REASON"]]
-    for job_id in args.job_ids:
+    for job_id in job_ids:
         found = statuses.get(job_id)
         if found is not None:
             exit_code = "-" if found.exit_code is None else str(found.exit_code)
             rows.append([job_id, found.state.value, exit_code, found.reason or "-"])
     _print_table(rows)
-    missing = [job_id for job_id in args.job_ids if job_id not in statuses]
+    missing = [job_id for job_id in job_ids if job_id not in statuses]
     for job_id in missing:
         print(f"tminus: error: no record of job {job_id}", file=sys.stderr)
     return 1 if missing else 0

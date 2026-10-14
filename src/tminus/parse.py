@@ -12,6 +12,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from .errors import SlurmOutputError
+from .spec import tags_from_comment
 from .state import JobState, JobStatus
 
 
@@ -25,6 +26,7 @@ def parse_squeue(text: str) -> List[JobStatus]:
             state=state,
             reason=_reason(job.get("state_reason")),
             exit_code=_return_code(job.get("exit_code")) if state.is_terminal else None,
+            tags=tags_from_comment(_comment(job.get("comment"))),
         ))
     return statuses
 
@@ -44,6 +46,7 @@ def parse_sacct(text: str) -> List[JobStatus]:
             state=state,
             reason=_reason(state_info.get("reason")),
             exit_code=_return_code(job.get("exit_code")) if state.is_terminal else None,
+            tags=tags_from_comment(_comment(job.get("comment"))),
         )
     return list(statuses.values())
 
@@ -81,6 +84,13 @@ def _reason(value: Any) -> Optional[str]:
     if not isinstance(value, str) or value in ("", "None"):
         return None
     return value
+
+
+def _comment(value: Any) -> str:
+    """The user's job comment: a string in squeue, {"job": ...} alongside admin comments in sacct."""
+    if isinstance(value, dict):
+        value = value.get("job")
+    return value if isinstance(value, str) else ""
 
 
 def _return_code(exit_code: Any) -> Optional[int]:

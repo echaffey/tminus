@@ -58,7 +58,8 @@
         "set": true,
         "infinite": false,
         "number": 120
-      }
+      },
+      "comment": "tminus:exp=exp42,run=1"
     },
     {
       "account": "lab",
@@ -102,7 +103,8 @@
         "set": true,
         "infinite": false,
         "number": 60
-      }
+      },
+      "comment": "an ordinary user comment"
     }
   ]
 }

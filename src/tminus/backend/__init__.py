@@ -2,16 +2,25 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
+from typing import Callable, Dict, Optional
 
 from ..errors import TminusError
+from ..store import default_path
 from .base import Backend
 from .fake import FakeBackend
 from .slurm_cli import SlurmCliBackend
 
-BACKENDS = {
+
+def fake_state_path() -> str:
+    """Where the shared fake scheduler keeps its state: ``TMINUS_FAKE_STATE``, else beside the Store."""
+    if os.environ.get("TMINUS_FAKE_STATE"):
+        return os.environ["TMINUS_FAKE_STATE"]
+    return os.path.join(os.path.dirname(os.path.abspath(default_path())), "fake-scheduler.json")
+
+
+BACKENDS: Dict[str, Callable[[], Backend]] = {
     "slurm": SlurmCliBackend,
-    "fake": FakeBackend,
+    "fake": lambda: FakeBackend(state_path=fake_state_path()),
 }
 
 
@@ -20,8 +29,8 @@ def get_backend(name: Optional[str] = None) -> Backend:
     if name is None:
         name = os.environ.get("TMINUS_BACKEND", "slurm")
     try:
-        backend_class = BACKENDS[name]
+        factory = BACKENDS[name]
     except KeyError:
         known = ", ".join(sorted(BACKENDS))
         raise TminusError(f"unknown backend {name!r} (expected one of: {known})") from None
-    return backend_class()
+    return factory()

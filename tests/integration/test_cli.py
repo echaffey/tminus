@@ -3,6 +3,8 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import shutil
+import tempfile
 import unittest
 from unittest import mock
 
@@ -52,6 +54,26 @@ class SubmitCommandTest(unittest.TestCase):
         self.assertNotIn("Traceback", err)
 
 
+class FakeBackendAcrossProcessesTest(unittest.TestCase):
+    """The fake backend must behave like one scheduler across separate CLI runs."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="tminus-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.env = {"TMINUS_BACKEND": "fake", "TMINUS_DB": os.path.join(self.tmp, "jobs.db")}
+
+    def test_separate_runs_get_distinct_ids_and_see_each_others_jobs(self):
+        _, first, _ = run_cli("submit", "--tag", "exp=exp42", "--wrap", "true", env=self.env)
+        _, second, _ = run_cli("submit", "--tag", "exp=exp42", "--wrap", "true", env=self.env)
+
+        status, out, err = run_cli("status", "--tag", "exp=exp42", env=self.env)
+
+        self.assertNotEqual(first.strip(), second.strip())
+        self.assertEqual(status, 0, err)
+        rows = [line.split()[:2] for line in out.strip().splitlines()[1:]]
+        self.assertEqual(rows, [[first.strip(), "PENDING"], [second.strip(), "PENDING"]])
+
+
 class StatusCommandTest(unittest.TestCase):
     def setUp(self):
         # Every CLI run builds its backend afresh, so hand it this prepared one.
@@ -72,6 +94,23 @@ class StatusCommandTest(unittest.TestCase):
         self.assertEqual(rows[0], ["JOBID", "STATE", "EXIT", "REASON"])
         self.assertEqual(rows[1], [self.pending, "PENDING", "-", "-"])
         self.assertEqual(rows[2], [self.failed, "FAILED", "3", "NonZeroExitCode"])
+
+    def test_status_by_tag_shows_every_tracked_job_with_that_tag(self):
+        _, out, _ = run_cli("submit", "--tag", "exp=exp42", "--wrap", "true")
+        tagged = out.strip()
+        run_cli("submit", "--tag", "exp=other", "--wrap", "true")
+
+        status, out, _ = run_cli("status", "--tag", "exp=exp42")
+
+        self.assertEqual(status, 0)
+        job_ids = [line.split()[0] for line in out.strip().splitlines()[1:]]
+        self.assertEqual(job_ids, [tagged])
+
+    def test_a_tag_without_a_value_is_a_usage_error(self):
+        status, _, err = run_cli("status", "--tag", "exp42")
+
+        self.assertEqual(status, 2)
+        self.assertIn("KEY=VALUE", err)
 
     def test_unknown_jobs_are_reported_and_make_the_exit_status_nonzero(self):
         status, out, err = run_cli("status", self.pending, "424242")

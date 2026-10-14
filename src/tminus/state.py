@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass
-from typing import Any, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 
 
 class JobState(enum.Enum):
@@ -88,10 +88,12 @@ class JobStatus:
 
     ``reason`` explains why a job is pending or how it ended (None when Slurm
     gives none). ``exit_code`` is the batch script's exit status, known only
-    once the job is terminal.
+    once the job is terminal. ``tags`` are those tminus wrote into the job's
+    Slurm comment at submission (empty for jobs tminus did not tag).
     """
 
     job_id: str
     state: JobState
     reason: Optional[str] = None
     exit_code: Optional[int] = None
+    tags: Dict[str, str] = field(default_factory=dict)

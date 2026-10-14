@@ -77,7 +77,12 @@
             }
           }
         }
-      ]
+      ],
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=exp42",
+        "system": ""
+      }
     },
     {
       "account": "lab",
@@ -109,7 +114,12 @@
           "name": ""
         }
       },
-      "steps": []
+      "steps": [],
+      "comment": {
+        "administrator": "",
+        "job": "",
+        "system": ""
+      }
     },
     {
       "account": "lab",
@@ -141,7 +151,12 @@
           "name": ""
         }
       },
-      "steps": []
+      "steps": [],
+      "comment": {
+        "administrator": "",
+        "job": "",
+        "system": ""
+      }
     }
   ]
 }

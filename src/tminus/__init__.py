@@ -1,7 +1,7 @@
 """tminus: schedule, monitor, modify, clean up after, and report on Slurm jobs."""
 from __future__ import annotations
 
-from typing import Dict, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from .backend import get_backend
 from .backend.base import Backend
@@ -17,6 +17,7 @@ from .errors import (
 from .job import Job
 from .spec import JobSpec
 from .state import JobState, JobStatus
+from .store import Store
 
 __version__ = "0.1.0"
 
@@ -31,23 +32,43 @@ __all__ = [
     "JobStatus",
     "SlurmCommandError",
     "SlurmOutputError",
+    "Store",
     "SubmitError",
     "TminusError",
     "get_backend",
+    "jobs",
     "status",
     "submit",
 ]
 
 
-def submit(spec: JobSpec, backend: Optional[Backend] = None) -> Job:
-    """Submit ``spec`` and return a handle on the new job.
+def submit(spec: JobSpec, backend: Optional[Backend] = None, store: Optional[Store] = None) -> Job:
+    """Submit ``spec``, record it in the Store, and return a handle on the new job.
 
     Without an explicit ``backend``, uses the one ``TMINUS_BACKEND`` selects
-    (real Slurm by default).
+    (real Slurm by default); without an explicit ``store``, the default one
+    (``TMINUS_DB``).
     """
     if backend is None:
         backend = get_backend()
-    return Job(job_id=backend.submit(spec), spec=spec, backend=backend)
+    if store is None:
+        store = Store()
+    job_id = backend.submit(spec)
+    store.record_submission(backend.name, job_id, spec)
+    return Job(job_id=job_id, spec=spec, backend=backend)
+
+
+def jobs(
+    tags: Optional[Dict[str, str]] = None,
+    backend: Optional[Backend] = None,
+    store: Optional[Store] = None,
+) -> List[Job]:
+    """Every tracked job on ``backend`` that carries all of ``tags``, oldest first."""
+    if backend is None:
+        backend = get_backend()
+    if store is None:
+        store = Store()
+    return [Job(job_id=job_id, spec=spec, backend=backend) for job_id, spec in store.find(backend.name, tags)]
 
 
 def status(job_ids: Sequence[str], backend: Optional[Backend] = None) -> Dict[str, JobStatus]:

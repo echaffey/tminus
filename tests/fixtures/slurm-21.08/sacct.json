@@ -42,7 +42,12 @@
             "return_code": 0
           }
         }
-      ]
+      ],
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=exp42",
+        "system": ""
+      }
     },
     {
       "account": "lab",
@@ -58,7 +63,12 @@
         "status": "FAILED",
         "return_code": 3
       },
-      "steps": []
+      "steps": [],
+      "comment": {
+        "administrator": "",
+        "job": "",
+        "system": ""
+      }
     },
     {
       "account": "lab",
@@ -74,7 +84,12 @@
         "status": "SUCCESS",
         "return_code": 0
       },
-      "steps": []
+      "steps": [],
+      "comment": {
+        "administrator": "",
+        "job": "",
+        "system": ""
+      }
     }
   ]
 }

@@ -26,7 +26,8 @@
       "exit_code": 0,
       "array_job_id": 0,
       "cpus": 4,
-      "time_limit": 120
+      "time_limit": 120,
+      "comment": "tminus:exp=exp42,run=1"
     },
     {
       "account": "lab",
@@ -39,7 +40,8 @@
       "exit_code": 0,
       "array_job_id": 0,
       "cpus": 4,
-      "time_limit": 60
+      "time_limit": 60,
+      "comment": "an ordinary user comment"
     }
   ]
 }

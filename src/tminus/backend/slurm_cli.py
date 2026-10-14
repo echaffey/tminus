@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Sequence
 
 from ..errors import SlurmCommandError, SubmitError
 from ..parse import parse_sacct, parse_squeue
-from ..spec import JobSpec
+from ..spec import JobSpec, tags_to_comment
 from ..state import JobStatus
 from .base import Backend
 from .runner import Runner, SubprocessRunner
@@ -34,6 +34,8 @@ def sbatch_args(spec: JobSpec) -> List[str]:
         value = getattr(spec, field_name)
         if value is not None:
             args.append(f"{option}={value}")
+    if spec.tags:
+        args.append("--comment=" + tags_to_comment(spec.tags))
     args.extend(spec.extra_args)
     if spec.command is not None:
         args.append(f"--wrap={spec.command}")
@@ -44,6 +46,8 @@ def sbatch_args(spec: JobSpec) -> List[str]:
 
 class SlurmCliBackend(Backend):
     """Runs ``sbatch`` and friends through a command Runner (local subprocesses by default)."""
+
+    name = "slurm"
 
     def __init__(self, runner: Optional[Runner] = None) -> None:
         self._runner = runner if runner is not None else SubprocessRunner()

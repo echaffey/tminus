@@ -48,6 +48,18 @@ class SlurmCliStatusTest(unittest.TestCase):
                 self.assertEqual(statuses["1004"].reason, "NonZeroExitCode")
                 self.assertIs(statuses["1005"].state, JobState.TIMEOUT)
 
+    def test_tags_are_read_back_from_the_job_comment(self):
+        for version in FIXTURE_VERSIONS:
+            with self.subTest(version=version):
+                runner = self.runner(version)
+
+                statuses = SlurmCliBackend(runner=runner).status(["1001", "1002", "1003", "1004"])
+
+                self.assertEqual(statuses["1001"].tags, {"exp": "exp42", "run": "1"})
+                self.assertEqual(statuses["1002"].tags, {})  # an ordinary, non-tminus comment
+                self.assertEqual(statuses["1003"].tags, {"exp": "exp42"})
+                self.assertEqual(statuses["1004"].tags, {})
+
     def test_sacct_is_not_called_when_squeue_knows_every_job(self):
         runner = self.runner(FIXTURE_VERSIONS[0])
 

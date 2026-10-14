@@ -8,10 +8,10 @@ Real output captured from the target cluster (ticket 02) goes in a directory nam
 
 Every set contains the same jobs:
 
-| Job | Where | State |
-| --- | --- | --- |
-| 1001 | squeue | RUNNING |
-| 1002 | squeue | PENDING (Priority) |
-| 1003 | sacct | COMPLETED, exit 0 |
-| 1004 | sacct | FAILED, exit 3 |
-| 1005 | sacct | TIMEOUT |
+| Job | Where | State | Comment |
+| --- | --- | --- | --- |
+| 1001 | squeue | RUNNING | `tminus:exp=exp42,run=1` |
+| 1002 | squeue | PENDING (Priority) | an ordinary user comment |
+| 1003 | sacct | COMPLETED, exit 0 | `tminus:exp=exp42` |
+| 1004 | sacct | FAILED, exit 3 | none |
+| 1005 | sacct | TIMEOUT | none |

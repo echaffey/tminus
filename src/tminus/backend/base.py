@@ -9,7 +9,13 @@ from ..state import JobStatus
 
 
 class Backend(abc.ABC):
-    """Submits and controls jobs on behalf of the rest of tminus."""
+    """Submits and controls jobs on behalf of the rest of tminus.
+
+    ``name`` identifies the scheduler a job id belongs to, so the Store never
+    confuses ids from different backends.
+    """
+
+    name = "abstract"
 
     @abc.abstractmethod
     def submit(self, spec: JobSpec) -> str:
