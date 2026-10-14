@@ -16,6 +16,18 @@ class SubmitError(TminusError):
     """A submission did not produce a usable job id."""
 
 
+class SlurmOutputError(TminusError):
+    """A Slurm command succeeded but printed output tminus cannot read."""
+
+
+class JobNotFound(TminusError):
+    """The scheduler has no record of a job, in its queue or its accounting."""
+
+    def __init__(self, job_id: str) -> None:
+        self.job_id = job_id
+        super().__init__(f"no record of job {job_id} in squeue or sacct")
+
+
 class SlurmCommandError(TminusError):
     """A Slurm command failed to run or exited with an error.
 

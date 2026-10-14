@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "plugin": {
+      "type": "openapi/v0.0.40",
+      "name": "Slurm OpenAPI v0.0.40"
+    },
+    "Slurm": {
+      "version": {
+        "major": 23,
+        "micro": 4,
+        "minor": 11
+      },
+      "release": "23.11.4"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "jobs": [
+    {
+      "account": "lab",
+      "job_id": 1001,
+      "name": "train",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": [
+        "RUNNING"
+      ],
+      "state_reason": "None",
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "array_job_id": {
+        "set": true,
+        "infinite": false,
+        "number": 0
+      },
+      "cpus": {
+        "set": true,
+        "infinite": false,
+        "number": 4
+      },
+      "time_limit": {
+        "set": true,
+        "infinite": false,
+        "number": 120
+      }
+    },
+    {
+      "account": "lab",
+      "job_id": 1002,
+      "name": "eval",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": [
+        "PENDING"
+      ],
+      "state_reason": "Priority",
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "array_job_id": {
+        "set": true,
+        "infinite": false,
+        "number": 0
+      },
+      "cpus": {
+        "set": true,
+        "infinite": false,
+        "number": 4
+      },
+      "time_limit": {
+        "set": true,
+        "infinite": false,
+        "number": 60
+      }
+    }
+  ]
+}

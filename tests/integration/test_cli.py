@@ -6,6 +6,10 @@ import os
 import unittest
 from unittest import mock
 
+import tminus
+from tminus import JobState
+from tminus.backend import BACKENDS
+from tminus.backend.fake import FakeBackend
 from tminus.cli import main
 
 
@@ -46,6 +50,35 @@ class SubmitCommandTest(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("nope", err)
         self.assertNotIn("Traceback", err)
+
+
+class StatusCommandTest(unittest.TestCase):
+    def setUp(self):
+        # Every CLI run builds its backend afresh, so hand it this prepared one.
+        self.backend = FakeBackend()
+        patcher = mock.patch.dict(BACKENDS, {"fake": lambda: self.backend})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        spec = tminus.JobSpec(command="true")
+        self.pending = tminus.submit(spec, backend=self.backend).job_id
+        self.failed = tminus.submit(spec, backend=self.backend).job_id
+        self.backend.set_state(self.failed, JobState.FAILED, reason="NonZeroExitCode", exit_code=3)
+
+    def test_prints_one_row_per_job_with_state_reason_and_exit_code(self):
+        status, out, _ = run_cli("status", self.pending, self.failed)
+
+        self.assertEqual(status, 0)
+        rows = [line.split() for line in out.strip().splitlines()]
+        self.assertEqual(rows[0], ["JOBID", "STATE", "EXIT", "REASON"])
+        self.assertEqual(rows[1], [self.pending, "PENDING", "-", "-"])
+        self.assertEqual(rows[2], [self.failed, "FAILED", "3", "NonZeroExitCode"])
+
+    def test_unknown_jobs_are_reported_and_make_the_exit_status_nonzero(self):
+        status, out, err = run_cli("status", self.pending, "424242")
+
+        self.assertEqual(status, 1)
+        self.assertIn(self.pending, out)
+        self.assertIn("424242", err)
 
 
 if __name__ == "__main__":

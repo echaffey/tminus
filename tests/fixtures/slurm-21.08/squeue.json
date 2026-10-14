@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "plugin": {
+      "type": "openapi/v0.0.37",
+      "name": "Slurm OpenAPI v0.0.37"
+    },
+    "Slurm": {
+      "version": {
+        "major": 21,
+        "micro": 8,
+        "minor": 8
+      },
+      "release": "21.08.8"
+    }
+  },
+  "errors": [],
+  "jobs": [
+    {
+      "account": "lab",
+      "job_id": 1001,
+      "name": "train",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": "RUNNING",
+      "state_reason": "None",
+      "exit_code": 0,
+      "array_job_id": 0,
+      "cpus": 4,
+      "time_limit": 120
+    },
+    {
+      "account": "lab",
+      "job_id": 1002,
+      "name": "eval",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": "PENDING",
+      "state_reason": "Priority",
+      "exit_code": 0,
+      "array_job_id": 0,
+      "cpus": 4,
+      "time_limit": 60
+    }
+  ]
+}

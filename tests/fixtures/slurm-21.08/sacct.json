@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "plugin": {
+      "type": "openapi/v0.0.37",
+      "name": "Slurm OpenAPI v0.0.37"
+    },
+    "Slurm": {
+      "version": {
+        "major": 21,
+        "micro": 8,
+        "minor": 8
+      },
+      "release": "21.08.8"
+    }
+  },
+  "errors": [],
+  "jobs": [
+    {
+      "account": "lab",
+      "job_id": 1003,
+      "name": "done",
+      "partition": "gpu",
+      "user": "u",
+      "state": {
+        "current": "COMPLETED",
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": "SUCCESS",
+        "return_code": 0
+      },
+      "steps": [
+        {
+          "step": {
+            "job_id": 1003,
+            "id": "1003.batch",
+            "name": "batch"
+          },
+          "state": "COMPLETED",
+          "exit_code": {
+            "status": "SUCCESS",
+            "return_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "account": "lab",
+      "job_id": 1004,
+      "name": "crash",
+      "partition": "gpu",
+      "user": "u",
+      "state": {
+        "current": "FAILED",
+        "reason": "NonZeroExitCode"
+      },
+      "exit_code": {
+        "status": "FAILED",
+        "return_code": 3
+      },
+      "steps": []
+    },
+    {
+      "account": "lab",
+      "job_id": 1005,
+      "name": "slow",
+      "partition": "gpu",
+      "user": "u",
+      "state": {
+        "current": "TIMEOUT",
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": "SUCCESS",
+        "return_code": 0
+      },
+      "steps": []
+    }
+  ]
+}

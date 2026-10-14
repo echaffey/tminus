@@ -5,7 +5,7 @@ import argparse
 import sys
 from typing import List, Optional
 
-from . import JobSpec, TminusError, __version__, submit
+from . import JobSpec, TminusError, __version__, status, submit
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -42,6 +42,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="extra sbatch argument, passed through as-is (repeatable), e.g. --sbatch-arg=--exclusive",
     )
     submit_cmd.set_defaults(handler=_submit)
+
+    status_cmd = commands.add_parser("status", help="show the current state of jobs")
+    status_cmd.add_argument("job_ids", nargs="+", metavar="JOBID")
+    status_cmd.set_defaults(handler=_status)
     return parser
 
 
@@ -65,6 +69,27 @@ def _submit(args: argparse.Namespace) -> int:
     )
     print(submit(spec).job_id)
     return 0
+
+
+def _status(args: argparse.Namespace) -> int:
+    statuses = status(args.job_ids)
+    rows = [["JOBID", "STATE", "EXIT", "REASON"]]
+    for job_id in args.job_ids:
+        found = statuses.get(job_id)
+        if found is not None:
+            exit_code = "-" if found.exit_code is None else str(found.exit_code)
+            rows.append([job_id, found.state.value, exit_code, found.reason or "-"])
+    _print_table(rows)
+    missing = [job_id for job_id in args.job_ids if job_id not in statuses]
+    for job_id in missing:
+        print(f"tminus: error: no record of job {job_id}", file=sys.stderr)
+    return 1 if missing else 0
+
+
+def _print_table(rows: List[List[str]]) -> None:
+    widths = [max(len(row[col]) for row in rows) for col in range(len(rows[0]))]
+    for row in rows:
+        print("  ".join(cell.ljust(width) for cell, width in zip(row, widths)).rstrip())
 
 
 def main(argv: Optional[List[str]] = None) -> int:

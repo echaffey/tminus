@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "plugin": {
+      "type": "openapi/v0.0.40",
+      "name": "Slurm OpenAPI v0.0.40"
+    },
+    "Slurm": {
+      "version": {
+        "major": 23,
+        "micro": 4,
+        "minor": 11
+      },
+      "release": "23.11.4"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "jobs": [
+    {
+      "account": "lab",
+      "job_id": 1003,
+      "name": "done",
+      "partition": "gpu",
+      "user": "u",
+      "state": {
+        "current": [
+          "COMPLETED"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "steps": [
+        {
+          "step": {
+            "id": {
+              "job_id": 1003,
+              "step_id": "batch"
+            },
+            "name": "batch"
+          },
+          "state": [
+            "COMPLETED"
+          ],
+          "exit_code": {
+            "status": [
+              "SUCCESS"
+            ],
+            "return_code": {
+              "set": true,
+              "infinite": false,
+              "number": 0
+            },
+            "signal": {
+              "id": {
+                "set": false,
+                "infinite": false,
+                "number": 0
+              },
+              "name": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "account": "lab",
+      "job_id": 1004,
+      "name": "crash",
+      "partition": "gpu",
+      "user": "u",
+      "state": {
+        "current": [
+          "FAILED"
+        ],
+        "reason": "NonZeroExitCode"
+      },
+      "exit_code": {
+        "status": [
+          "ERROR"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 3
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "steps": []
+    },
+    {
+      "account": "lab",
+      "job_id": 1005,
+      "name": "slow",
+      "partition": "gpu",
+      "user": "u",
+      "state": {
+        "current": [
+          "TIMEOUT"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "steps": []
+    }
+  ]
+}

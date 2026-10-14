@@ -1,10 +1,12 @@
 """SlurmCliBackend: drives a real Slurm cluster through its command-line tools."""
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Sequence
 
 from ..errors import SlurmCommandError, SubmitError
+from ..parse import parse_sacct, parse_squeue
 from ..spec import JobSpec
+from ..state import JobStatus
 from .base import Backend
 from .runner import Runner, SubprocessRunner
 
@@ -55,3 +57,25 @@ class SlurmCliBackend(Backend):
         if not job_id.isdigit():
             raise SubmitError(f"sbatch did not print a job id: {result.stdout.strip()!r}")
         return job_id
+
+    def status(self, job_ids: Sequence[str]) -> Dict[str, JobStatus]:
+        """Ask squeue about every job, then sacct about any squeue no longer knows."""
+        wanted = list(dict.fromkeys(job_ids))
+        if not wanted:
+            return {}
+        found = self._query("squeue", wanted, parse_squeue)
+        missing = [job_id for job_id in wanted if job_id not in found]
+        if missing:
+            found.update(self._query("sacct", missing, parse_sacct))
+        return found
+
+    def _query(self, program, job_ids, parse) -> Dict[str, JobStatus]:
+        result = self._runner.run([program, "--json", "--jobs=" + ",".join(job_ids)])
+        if result.returncode != 0:
+            # squeue rejects ids slurmctld has already forgotten; sacct still has them.
+            if program == "squeue" and "Invalid job id" in result.stderr:
+                return {}
+            raise SlurmCommandError(result.args, result.returncode, result.stderr)
+        # Older Slurm ignores --jobs when printing JSON, so filter here as well.
+        wanted = set(job_ids)
+        return {status.job_id: status for status in parse(result.stdout) if status.job_id in wanted}
