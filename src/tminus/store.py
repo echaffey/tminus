@@ -49,7 +49,25 @@ _MIGRATIONS = [
     );
     CREATE INDEX history_by_job ON history (job, seen_at);
     """,
+    """
+    CREATE TABLE events (
+        job    INTEGER NOT NULL REFERENCES jobs (id) ON DELETE CASCADE,
+        at     REAL NOT NULL,
+        action TEXT NOT NULL,
+        detail TEXT
+    );
+    CREATE INDEX events_by_job ON events (job, at);
+    """,
 ]
+
+
+@dataclass(frozen=True)
+class Event:
+    """Something tminus did to a tracked job after submitting it (cancel, update, ...)."""
+
+    at: float
+    action: str
+    detail: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -141,6 +159,25 @@ class Store:
             ).fetchall()
         return [HistoryEntry(seen_at, JobState(state), reason, exit_code)
                 for seen_at, state, reason, exit_code in rows]
+
+    def record_event(self, backend: str, job_id: str, action: str, detail: Optional[str] = None) -> None:
+        """Note that tminus did ``action`` to a job. Jobs the Store is not tracking are ignored."""
+        with self._transaction() as db:
+            db.execute(
+                "INSERT INTO events (job, at, action, detail)"
+                " SELECT id, ?, ?, ? FROM jobs WHERE backend = ? AND job_id = ?",
+                (self._clock(), action, detail, backend, job_id),
+            )
+
+    def events(self, backend: str, job_id: str) -> List[Event]:
+        """Everything tminus did to one job, oldest first."""
+        with self._transaction() as db:
+            rows = db.execute(
+                "SELECT e.at, e.action, e.detail FROM events e JOIN jobs j ON j.id = e.job"
+                " WHERE j.backend = ? AND j.job_id = ? ORDER BY e.at, e.rowid",
+                (backend, job_id),
+            ).fetchall()
+        return [Event(at, action, detail) for at, action, detail in rows]
 
     @contextlib.contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:

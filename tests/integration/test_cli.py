@@ -144,6 +144,35 @@ class StatusCommandTest(unittest.TestCase):
         self.assertIn("PENDING", out)
         self.assertIn("unfinished", err)
 
+    def test_cancel_cancels_active_jobs_and_skips_finished_ones(self):
+        status, out, _ = run_cli("cancel", self.pending, self.failed)
+
+        self.assertEqual(status, 0)
+        self.assertIs(self.backend.status([self.pending])[self.pending].state, JobState.CANCELLED)
+        self.assertIn(f"cancelled {self.pending}", out)
+        self.assertIn(f"{self.failed} already finished", out)
+
+    def test_update_changes_the_requested_fields(self):
+        status, _, _ = run_cli("update", self.pending, "--time-limit", "04:00:00", "--partition", "long")
+
+        self.assertEqual(status, 0)
+        self.assertEqual(self.backend.updates[self.pending], {"time_limit": "04:00:00", "partition": "long"})
+
+    def test_update_without_any_change_is_a_usage_error(self):
+        status, _, err = run_cli("update", self.pending)
+
+        self.assertEqual(status, 1)
+        self.assertIn("nothing to update", err)
+
+    def test_hold_and_release(self):
+        run_cli("hold", self.pending)
+        held = self.backend.status([self.pending])[self.pending]
+        run_cli("release", self.pending)
+        released = self.backend.status([self.pending])[self.pending]
+
+        self.assertEqual(held.reason, "JobHeldUser")
+        self.assertIsNone(released.reason)
+
     def test_unknown_jobs_are_reported_and_make_the_exit_status_nonzero(self):
         status, out, err = run_cli("status", self.pending, "424242")
 

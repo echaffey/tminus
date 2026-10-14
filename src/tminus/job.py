@@ -2,16 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
-from .errors import JobNotFound
+from .backend.base import UPDATABLE_FIELDS, Backend
+from .errors import InvalidUpdateError, JobNotFound
 from .monitor import wait_all
 from .spec import JobSpec
 from .state import JobStatus
-
-if TYPE_CHECKING:
-    from .backend.base import Backend
-
+from .store import Store
 
 @dataclass
 class Job:
@@ -46,3 +44,45 @@ class Job:
         ``timeout`` seconds pass first.
         """
         return wait_all([self], timeout=timeout, **options)[self.job_id]
+
+    def cancel(self, store: Optional[Store] = None) -> bool:
+        """Cancel the job if it is still active. Returns False, doing nothing, if it already finished."""
+        if self.refresh().state.is_terminal:
+            return False
+        self.backend.cancel([self.job_id])
+        self._record("cancel", store)
+        return True
+
+    def hold(self, store: Optional[Store] = None) -> None:
+        """Keep a pending job from starting until ``release()``."""
+        self.backend.hold([self.job_id])
+        self._record("hold", store)
+
+    def release(self, store: Optional[Store] = None) -> None:
+        """Let a held job start again."""
+        self.backend.release([self.job_id])
+        self._record("release", store)
+
+    def requeue(self, store: Optional[Store] = None) -> None:
+        """Put the job back in the queue to run again."""
+        self.backend.requeue([self.job_id])
+        self._record("requeue", store)
+
+    def update(self, store: Optional[Store] = None, **changes: Any) -> None:
+        """Change fields of the job: any of time_limit, partition, name, qos, account, nodes.
+
+        Raises InvalidUpdateError, before anything reaches the scheduler, for any other field.
+        """
+        unsupported = sorted(set(changes) - set(UPDATABLE_FIELDS))
+        if unsupported:
+            raise InvalidUpdateError(
+                f"cannot update {', '.join(unsupported)}; updatable fields are {', '.join(UPDATABLE_FIELDS)}"
+            )
+        if not changes:
+            return
+        self.backend.update(self.job_id, changes)
+        detail = ",".join(f"{name}={changes[name]}" for name in UPDATABLE_FIELDS if name in changes)
+        self._record("update", store, detail)
+
+    def _record(self, action: str, store: Optional[Store], detail: Optional[str] = None) -> None:
+        (store if store is not None else Store()).record_event(self.backend.name, self.job_id, action, detail)

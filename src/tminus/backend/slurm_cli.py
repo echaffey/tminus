@@ -1,7 +1,7 @@
 """SlurmCliBackend: drives a real Slurm cluster through its command-line tools."""
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from ..errors import SlurmCommandError, SubmitError
 from ..parse import parse_sacct, parse_squeue
@@ -24,6 +24,17 @@ _SBATCH_OPTIONS = (
     ("workdir", "--chdir"),
     ("output", "--output"),
     ("error", "--error"),
+)
+
+
+# UPDATABLE_FIELDS name -> scontrol update field, in command-line order.
+_SCONTROL_FIELDS = (
+    ("time_limit", "TimeLimit"),
+    ("partition", "Partition"),
+    ("name", "JobName"),
+    ("qos", "QOS"),
+    ("account", "Account"),
+    ("nodes", "NumNodes"),
 )
 
 
@@ -83,3 +94,27 @@ class SlurmCliBackend(Backend):
         # Older Slurm ignores --jobs when printing JSON, so filter here as well.
         wanted = set(job_ids)
         return {status.job_id: status for status in parse(result.stdout) if status.job_id in wanted}
+
+    def cancel(self, job_ids: Sequence[str]) -> None:
+        result = self._runner.run(["scancel"] + list(job_ids))
+        # A job can finish between deciding to cancel it and scancel running; that is fine.
+        if result.returncode != 0 and "already completing or completed" not in result.stderr:
+            raise SlurmCommandError(result.args, result.returncode, result.stderr)
+
+    def hold(self, job_ids: Sequence[str]) -> None:
+        self._scontrol(["hold", ",".join(job_ids)])
+
+    def release(self, job_ids: Sequence[str]) -> None:
+        self._scontrol(["release", ",".join(job_ids)])
+
+    def requeue(self, job_ids: Sequence[str]) -> None:
+        self._scontrol(["requeue", ",".join(job_ids)])
+
+    def update(self, job_id: str, changes: Dict[str, Any]) -> None:
+        fields = [f"{slurm_name}={changes[name]}" for name, slurm_name in _SCONTROL_FIELDS if name in changes]
+        self._scontrol(["update", f"JobId={job_id}"] + fields)
+
+    def _scontrol(self, args: List[str]) -> None:
+        result = self._runner.run(["scontrol"] + args)
+        if result.returncode != 0:
+            raise SlurmCommandError(result.args, result.returncode, result.stderr)

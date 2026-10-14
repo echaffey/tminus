@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import abc
-from typing import Dict, Sequence
+from typing import Any, Dict, Sequence
 
 from ..spec import JobSpec
 from ..state import JobStatus
+
+
+# JobSpec-style names of the fields that can be changed after submission.
+UPDATABLE_FIELDS = ("time_limit", "partition", "name", "qos", "account", "nodes")
 
 
 class Backend(abc.ABC):
@@ -27,3 +31,23 @@ class Backend(abc.ABC):
 
         Jobs the scheduler has no record of are left out of the result.
         """
+
+    @abc.abstractmethod
+    def cancel(self, job_ids: Sequence[str]) -> None:
+        """Cancel every job in ``job_ids``. Jobs that have already finished are not an error."""
+
+    @abc.abstractmethod
+    def hold(self, job_ids: Sequence[str]) -> None:
+        """Stop pending jobs from starting until released."""
+
+    @abc.abstractmethod
+    def release(self, job_ids: Sequence[str]) -> None:
+        """Let held jobs start again."""
+
+    @abc.abstractmethod
+    def requeue(self, job_ids: Sequence[str]) -> None:
+        """Put jobs back in the queue to run again."""
+
+    @abc.abstractmethod
+    def update(self, job_id: str, changes: Dict[str, Any]) -> None:
+        """Change fields of a submitted job. ``changes`` uses names from UPDATABLE_FIELDS."""

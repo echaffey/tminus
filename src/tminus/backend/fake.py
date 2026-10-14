@@ -6,6 +6,7 @@ import os
 import tempfile
 from typing import Any, Dict, Optional, Sequence
 
+from ..errors import JobNotFound
 from ..spec import JobSpec
 from ..state import JobState, JobStatus
 from .base import Backend
@@ -15,8 +16,8 @@ class FakeBackend(Backend):
     """Accepts every submission and hands out increasing job ids.
 
     New jobs start PENDING and stay there until moved with ``set_state``.
-    ``submitted`` maps each job id to the JobSpec it was submitted with (in
-    this process only).
+    ``submitted`` maps each job id to the JobSpec it was submitted with, and
+    ``updates`` to the changes applied with ``update`` (both in this process only).
 
     By default everything lives in memory. With ``state_path``, the scheduler's
     job ids and states are kept in that JSON file instead, so separate
@@ -30,6 +31,7 @@ class FakeBackend(Backend):
         self._next_id = first_job_id
         self._statuses: Dict[str, JobStatus] = {}
         self.submitted: Dict[str, JobSpec] = {}
+        self.updates: Dict[str, Dict[str, Any]] = {}
 
     def submit(self, spec: JobSpec) -> str:
         self._load()
@@ -54,10 +56,38 @@ class FakeBackend(Backend):
         """Move a submitted job to ``state``, as the scheduler would."""
         self._load()
         if job_id not in self._statuses:
-            raise KeyError(f"FakeBackend never submitted job {job_id}")
+            raise JobNotFound(job_id)
         tags = self._statuses[job_id].tags
         self._statuses[job_id] = JobStatus(job_id, state, reason, exit_code, tags)
         self._save()
+
+    def cancel(self, job_ids: Sequence[str]) -> None:
+        for job_id in self._known(job_ids):
+            if not self._statuses[job_id].state.is_terminal:
+                self.set_state(job_id, JobState.CANCELLED)
+
+    def hold(self, job_ids: Sequence[str]) -> None:
+        for job_id in self._known(job_ids):
+            self.set_state(job_id, JobState.PENDING, reason="JobHeldUser")
+
+    def release(self, job_ids: Sequence[str]) -> None:
+        for job_id in self._known(job_ids):
+            self.set_state(job_id, JobState.PENDING)
+
+    def requeue(self, job_ids: Sequence[str]) -> None:
+        for job_id in self._known(job_ids):
+            self.set_state(job_id, JobState.PENDING)
+
+    def update(self, job_id: str, changes: Dict[str, Any]) -> None:
+        self._known([job_id])
+        self.updates.setdefault(job_id, {}).update(changes)
+
+    def _known(self, job_ids: Sequence[str]) -> Sequence[str]:
+        self._load()
+        unknown = [job_id for job_id in job_ids if job_id not in self._statuses]
+        if unknown:
+            raise JobNotFound(unknown[0])
+        return job_ids
 
     def _load(self) -> None:
         if self._state_path is None or not os.path.exists(self._state_path):

@@ -72,6 +72,29 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_tag_option(wait_cmd, "include every tracked job with this tag (repeatable; all must match)")
     wait_cmd.add_argument("--timeout", type=float, metavar="SECONDS", help="give up after this long")
     wait_cmd.set_defaults(handler=_wait)
+
+    cancel_cmd = commands.add_parser("cancel", help="cancel jobs (finished jobs are skipped)")
+    cancel_cmd.add_argument("job_ids", nargs="+", metavar="JOBID")
+    cancel_cmd.set_defaults(handler=_cancel)
+
+    update_cmd = commands.add_parser("update", help="change a submitted job's time limit, partition, ...")
+    update_cmd.add_argument("job_id", metavar="JOBID")
+    update_cmd.add_argument("--time-limit", dest="time_limit", help="new time limit, e.g. 04:00:00")
+    update_cmd.add_argument("--partition")
+    update_cmd.add_argument("--name", help="new job name")
+    update_cmd.add_argument("--qos")
+    update_cmd.add_argument("--account")
+    update_cmd.add_argument("--nodes", type=int)
+    update_cmd.set_defaults(handler=_update)
+
+    for name, help_text in (
+        ("hold", "keep pending jobs from starting"),
+        ("release", "let held jobs start"),
+        ("requeue", "put jobs back in the queue to run again"),
+    ):
+        control_cmd = commands.add_parser(name, help=help_text)
+        control_cmd.add_argument("job_ids", nargs="+", metavar="JOBID")
+        control_cmd.set_defaults(handler=_control, action=name)
     return parser
 
 
@@ -118,6 +141,36 @@ def _wait(args: argparse.Namespace) -> int:
         return 124
     _print_statuses([statuses[job.job_id] for job in selected])
     return 0 if all(found.state.is_success for found in statuses.values()) else 1
+
+
+def _cancel(args: argparse.Namespace) -> int:
+    backend = get_backend()
+    for job_id in args.job_ids:
+        if Job(job_id, None, backend).cancel():
+            print(f"cancelled {job_id}")
+        else:
+            print(f"{job_id} already finished")
+    return 0
+
+
+def _update(args: argparse.Namespace) -> int:
+    changes = {
+        name: getattr(args, name)
+        for name in ("time_limit", "partition", "name", "qos", "account", "nodes")
+        if getattr(args, name) is not None
+    }
+    if not changes:
+        raise TminusError("nothing to update: give at least one of --time-limit, --partition, "
+                          "--name, --qos, --account, --nodes")
+    Job(args.job_id, None, get_backend()).update(**changes)
+    return 0
+
+
+def _control(args: argparse.Namespace) -> int:
+    backend = get_backend()
+    for job_id in args.job_ids:
+        getattr(Job(job_id, None, backend), args.action)()
+    return 0
 
 
 def _selected_jobs(args: argparse.Namespace) -> List[Job]:

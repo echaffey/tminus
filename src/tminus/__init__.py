@@ -8,6 +8,7 @@ from .backend.base import Backend
 from .errors import (
     CommandTimeoutError,
     InvalidSpecError,
+    InvalidUpdateError,
     JobNotFound,
     SlurmCommandError,
     SlurmOutputError,
@@ -28,6 +29,7 @@ __all__ = [
     "Backend",
     "CommandTimeoutError",
     "InvalidSpecError",
+    "InvalidUpdateError",
     "Job",
     "JobSpec",
     "JobNotFound",

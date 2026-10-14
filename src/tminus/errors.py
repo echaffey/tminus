@@ -69,3 +69,7 @@ class WaitTimeout(TminusError):
         self.statuses = statuses
         unfinished = sorted(job_id for job_id, status in statuses.items() if not status.state.is_terminal)
         super().__init__(f"{len(unfinished)} job(s) still unfinished after {timeout} seconds: {', '.join(unfinished)}")
+
+
+class InvalidUpdateError(TminusError):
+    """A job update named a field that cannot be changed after submission."""
