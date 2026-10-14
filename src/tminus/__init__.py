@@ -7,6 +7,7 @@ from .backend import get_backend
 from .backend.base import Backend
 from .errors import (
     CommandTimeoutError,
+    InvalidAgeError,
     InvalidSpecError,
     InvalidUpdateError,
     JobNotFound,
@@ -17,6 +18,7 @@ from .errors import (
     UnsatisfiableDependency,
     WaitTimeout,
 )
+from .cleanup import prune
 from .job import Job
 from . import aio
 from .monitor import PollPolicy, wait_all
@@ -30,6 +32,7 @@ __all__ = [
     "Backend",
     "CommandTimeoutError",
     "DependencyType",
+    "InvalidAgeError",
     "InvalidSpecError",
     "InvalidUpdateError",
     "Job",
@@ -48,6 +51,7 @@ __all__ = [
     "aio",
     "get_backend",
     "jobs",
+    "prune",
     "status",
     "submit",
     "wait_all",

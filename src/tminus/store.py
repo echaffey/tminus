@@ -160,6 +160,36 @@ class Store:
         return [HistoryEntry(seen_at, JobState(state), reason, exit_code)
                 for seen_at, state, reason, exit_code in rows]
 
+    def now(self) -> float:
+        """The current time by this Store's clock (wall-clock seconds by default)."""
+        return self._clock()
+
+    def submitted_before(
+        self, backend: str, cutoff: float, tags: Optional[Dict[str, str]] = None
+    ) -> List[Tuple[str, Optional[JobState]]]:
+        """``(job_id, last recorded state or None)`` for jobs on ``backend`` submitted before
+        ``cutoff`` and carrying all of ``tags``, oldest first."""
+        sql = (
+            "SELECT j.job_id, (SELECT h.state FROM history h WHERE h.job = j.id"
+            " ORDER BY h.seen_at DESC, h.rowid DESC LIMIT 1)"
+            " FROM jobs j WHERE j.backend = ? AND j.submitted_at < ?"
+        )
+        params: list = [backend, cutoff]
+        for key, value in sorted((tags or {}).items()):
+            sql += " AND j.id IN (SELECT job FROM tags WHERE key = ? AND value = ?)"
+            params += [key, value]
+        sql += " ORDER BY j.id"
+        with self._transaction() as db:
+            rows = db.execute(sql, params).fetchall()
+        return [(job_id, None if state is None else JobState(state)) for job_id, state in rows]
+
+    def delete(self, backend: str, job_ids: Sequence[str]) -> None:
+        """Forget jobs entirely, with their tags, history, and events."""
+        with self._transaction() as db:
+            db.executemany(
+                "DELETE FROM jobs WHERE backend = ? AND job_id = ?", [(backend, job_id) for job_id in job_ids]
+            )
+
     def record_event(self, backend: str, job_id: str, action: str, detail: Optional[str] = None) -> None:
         """Note that tminus did ``action`` to a job. Jobs the Store is not tracking are ignored."""
         with self._transaction() as db:

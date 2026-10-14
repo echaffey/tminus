@@ -87,3 +87,7 @@ class UnsatisfiableDependency(TminusError):
             f"job(s) {', '.join(job_ids)} can never start: their dependencies can no longer be "
             "satisfied (cancel them, or fix the dependency and release them)"
         )
+
+
+class InvalidAgeError(TminusError):
+    """An age such as ``30d`` could not be understood."""

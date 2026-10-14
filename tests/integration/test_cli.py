@@ -187,6 +187,30 @@ class StatusCommandTest(unittest.TestCase):
         self.assertEqual(held.reason, "JobHeldUser")
         self.assertIsNone(released.reason)
 
+    def test_prune_previews_by_default_and_acts_with_yes(self):
+        store = tminus.Store()
+        store.delete("fake", [self.pending, self.failed])
+        old = tminus.submit(tminus.JobSpec(command="true"), backend=self.backend,
+                            store=tminus.Store(clock=lambda: 0.0)).job_id  # submitted in 1970
+        self.backend.set_state(old, JobState.COMPLETED)
+
+        preview_status, preview, _ = run_cli("prune", "--older-than", "30d")
+        still_there = [job.job_id for job in tminus.jobs(backend=self.backend)]
+        status, out, _ = run_cli("prune", "--older-than", "30d", "--yes")
+
+        self.assertEqual(preview_status, 0)
+        self.assertIn(f"would remove 1 record(s): {old}", preview)
+        self.assertIn(old, still_there)
+        self.assertEqual(status, 0)
+        self.assertIn(f"removed 1 record(s): {old}", out)
+        self.assertNotIn(old, [job.job_id for job in tminus.jobs(backend=self.backend)])
+
+    def test_prune_with_an_invalid_age_is_a_usage_error(self):
+        status, _, err = run_cli("prune", "--older-than", "soon")
+
+        self.assertEqual(status, 2)
+        self.assertIn("invalid age", err)
+
     def test_unknown_jobs_are_reported_and_make_the_exit_status_nonzero(self):
         status, out, err = run_cli("status", self.pending, "424242")
 

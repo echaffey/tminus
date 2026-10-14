@@ -5,7 +5,8 @@ import argparse
 import sys
 from typing import List, Optional, Tuple
 
-from . import DependencyType, Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, submit, wait_all
+from . import DependencyType, InvalidAgeError, Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, prune, submit, wait_all
+from .cleanup import parse_age
 
 
 def _tag(text: str) -> Tuple[str, str]:
@@ -13,6 +14,13 @@ def _tag(text: str) -> Tuple[str, str]:
     if not sep or not key or not value:
         raise argparse.ArgumentTypeError(f"expected KEY=VALUE, got {text!r}")
     return key, value
+
+
+def _age(text: str) -> float:
+    try:
+        return parse_age(text)
+    except InvalidAgeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
 
 
 def _add_tag_option(parser: argparse.ArgumentParser, help_text: str) -> None:
@@ -104,6 +112,18 @@ def _build_parser() -> argparse.ArgumentParser:
         control_cmd = commands.add_parser(name, help=help_text)
         control_cmd.add_argument("job_ids", nargs="+", metavar="JOBID")
         control_cmd.set_defaults(handler=_control, action=name)
+
+    prune_cmd = commands.add_parser(
+        "prune",
+        help="forget old finished jobs (dry run unless --yes)",
+        description="Remove tracking records of finished jobs submitted more than --older-than ago. "
+        "Active jobs are never removed. Lists what would be removed unless --yes is given.",
+    )
+    prune_cmd.add_argument("--older-than", dest="older_than", type=_age, required=True, metavar="AGE",
+                           help="e.g. 30d, 12h, 2w")
+    _add_tag_option(prune_cmd, "only consider jobs with this tag (repeatable; all must match)")
+    prune_cmd.add_argument("--yes", action="store_true", help="actually remove the records")
+    prune_cmd.set_defaults(handler=_prune)
     return parser
 
 
@@ -181,6 +201,15 @@ def _control(args: argparse.Namespace) -> int:
     backend = get_backend()
     for job_id in args.job_ids:
         getattr(Job(job_id, None, backend), args.action)()
+    return 0
+
+
+def _prune(args: argparse.Namespace) -> int:
+    removed = prune(args.older_than, tags=dict(args.tags) or None, dry_run=not args.yes)
+    verb = "removed" if args.yes else "would remove"
+    print(f"{verb} {len(removed)} record(s)" + (": " + " ".join(removed) if removed else ""))
+    if removed and not args.yes:
+        print("run again with --yes to remove them")
     return 0
 
 
