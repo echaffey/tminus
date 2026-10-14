@@ -157,6 +157,282 @@
         "job": "",
         "system": ""
       }
+    },
+    {
+      "account": "lab",
+      "job_id": 2000,
+      "name": "sweep",
+      "partition": "gpu",
+      "user": "u",
+      "array": {
+        "job_id": 2000,
+        "task_id": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "task": ""
+      },
+      "state": {
+        "current": [
+          "COMPLETED"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=arrays",
+        "system": ""
+      },
+      "steps": []
+    },
+    {
+      "account": "lab",
+      "job_id": 2001,
+      "name": "sweep",
+      "partition": "gpu",
+      "user": "u",
+      "array": {
+        "job_id": 2000,
+        "task_id": {
+          "set": true,
+          "infinite": false,
+          "number": 1
+        },
+        "task": ""
+      },
+      "state": {
+        "current": [
+          "FAILED"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "ERROR"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 2
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=arrays",
+        "system": ""
+      },
+      "steps": []
+    },
+    {
+      "account": "lab",
+      "job_id": 2003,
+      "name": "sweep",
+      "partition": "gpu",
+      "user": "u",
+      "array": {
+        "job_id": 2000,
+        "task_id": {
+          "set": true,
+          "infinite": false,
+          "number": 2
+        },
+        "task": ""
+      },
+      "state": {
+        "current": [
+          "RUNNING"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=arrays",
+        "system": ""
+      },
+      "steps": []
+    },
+    {
+      "account": "lab",
+      "job_id": 2000,
+      "name": "sweep",
+      "partition": "gpu",
+      "user": "u",
+      "array": {
+        "job_id": 2000,
+        "task_id": {
+          "set": false,
+          "infinite": false,
+          "number": 0
+        },
+        "task": "3"
+      },
+      "state": {
+        "current": [
+          "PENDING"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=arrays",
+        "system": ""
+      },
+      "steps": []
+    },
+    {
+      "account": "lab",
+      "job_id": 2010,
+      "name": "sweep",
+      "partition": "gpu",
+      "user": "u",
+      "array": {
+        "job_id": 2010,
+        "task_id": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "task": ""
+      },
+      "state": {
+        "current": [
+          "COMPLETED"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=arrays",
+        "system": ""
+      },
+      "steps": []
+    },
+    {
+      "account": "lab",
+      "job_id": 2011,
+      "name": "sweep",
+      "partition": "gpu",
+      "user": "u",
+      "array": {
+        "job_id": 2010,
+        "task_id": {
+          "set": true,
+          "infinite": false,
+          "number": 1
+        },
+        "task": ""
+      },
+      "state": {
+        "current": [
+          "COMPLETED"
+        ],
+        "reason": "None"
+      },
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "comment": {
+        "administrator": "",
+        "job": "tminus:exp=arrays",
+        "system": ""
+      },
+      "steps": []
     }
   ]
 }

@@ -258,6 +258,15 @@ class StatusCommandTest(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("invalid age", err)
 
+    def test_status_of_an_array_shows_how_many_tasks_are_in_each_state(self):
+        array = tminus.submit(tminus.JobSpec(command="true", array="0-2"), backend=self.backend).job_id
+        self.backend.set_state(f"{array}_0", JobState.COMPLETED)
+
+        status, out, _ = run_cli("status", array)
+
+        self.assertEqual(status, 0)
+        self.assertIn(f"{array} tasks: COMPLETED=1, PENDING=2", out)
+
     def test_unknown_jobs_are_reported_and_make_the_exit_status_nonzero(self):
         status, out, err = run_cli("status", self.pending, "424242")
 

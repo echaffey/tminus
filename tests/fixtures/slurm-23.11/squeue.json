@@ -105,6 +105,88 @@
         "number": 60
       },
       "comment": "an ordinary user comment"
+    },
+    {
+      "account": "lab",
+      "job_id": 2003,
+      "name": "sweep",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": [
+        "RUNNING"
+      ],
+      "state_reason": "None",
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "array_job_id": {
+        "set": true,
+        "infinite": false,
+        "number": 2000
+      },
+      "array_task_id": {
+        "set": true,
+        "infinite": false,
+        "number": 2
+      },
+      "array_task_string": "",
+      "comment": "tminus:exp=arrays"
+    },
+    {
+      "account": "lab",
+      "job_id": 2000,
+      "name": "sweep",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": [
+        "PENDING"
+      ],
+      "state_reason": "JobArrayTaskLimit",
+      "exit_code": {
+        "status": [
+          "SUCCESS"
+        ],
+        "return_code": {
+          "set": true,
+          "infinite": false,
+          "number": 0
+        },
+        "signal": {
+          "id": {
+            "set": false,
+            "infinite": false,
+            "number": 0
+          },
+          "name": ""
+        }
+      },
+      "array_job_id": {
+        "set": true,
+        "infinite": false,
+        "number": 2000
+      },
+      "array_task_id": {
+        "set": false,
+        "infinite": false,
+        "number": 0
+      },
+      "array_task_string": "3%2",
+      "comment": "tminus:exp=arrays"
     }
   ]
 }

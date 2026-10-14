@@ -12,42 +12,50 @@ import json
 from typing import Any, Dict, List, Optional
 
 from .errors import SlurmOutputError
-from .spec import tags_from_comment
+from .spec import expand_array, tags_from_comment
 from .state import JobState, JobStatus
 
 
 def parse_squeue(text: str) -> List[JobStatus]:
-    """Job statuses from ``squeue --json`` output."""
+    """Job statuses from ``squeue --json`` output.
+
+    Array tasks are reported individually as ``<array id>_<task id>``,
+    including pending tasks squeue collapses into one record.
+    """
     statuses = []
     for job in _jobs(text, "squeue"):
         state = JobState.from_slurm(job.get("job_state"))
-        statuses.append(JobStatus(
-            job_id=_job_id(job),
-            state=state,
-            reason=_reason(job.get("state_reason")),
-            exit_code=_return_code(job.get("exit_code")) if state.is_terminal else None,
-            tags=tags_from_comment(_comment(job.get("comment"))),
-        ))
+        ids = _ids(job, job.get("array_job_id"), job.get("array_task_id"), job.get("array_task_string"))
+        for job_id in ids:
+            statuses.append(JobStatus(
+                job_id=job_id,
+                state=state,
+                reason=_reason(job.get("state_reason")),
+                exit_code=_return_code(job.get("exit_code")) if state.is_terminal else None,
+                tags=tags_from_comment(_comment(job.get("comment"))),
+            ))
     return statuses
 
 
 def parse_sacct(text: str) -> List[JobStatus]:
     """Job statuses from ``sacct --json`` output.
 
-    A requeued job can appear more than once; the last record is the current one.
+    A requeued job can appear more than once; the last record is the current
+    one. Array tasks are reported individually, as for ``parse_squeue``.
     """
     statuses: Dict[str, JobStatus] = {}
     for job in _jobs(text, "sacct"):
         state_info = job.get("state") or {}
         state = JobState.from_slurm(state_info.get("current"))
-        job_id = _job_id(job)
-        statuses[job_id] = JobStatus(
-            job_id=job_id,
-            state=state,
-            reason=_reason(state_info.get("reason")),
-            exit_code=_return_code(job.get("exit_code")) if state.is_terminal else None,
-            tags=tags_from_comment(_comment(job.get("comment"))),
-        )
+        array = job.get("array") if isinstance(job.get("array"), dict) else {}
+        for job_id in _ids(job, array.get("job_id"), array.get("task_id"), array.get("task")):
+            statuses[job_id] = JobStatus(
+                job_id=job_id,
+                state=state,
+                reason=_reason(state_info.get("reason")),
+                exit_code=_return_code(job.get("exit_code")) if state.is_terminal else None,
+                tags=tags_from_comment(_comment(job.get("comment"))),
+            )
     return list(statuses.values())
 
 
@@ -77,6 +85,22 @@ def _number(value: Any) -> Optional[int]:
 
 def _job_id(job: Dict[str, Any]) -> str:
     return str(_number(job.get("job_id")))
+
+
+def _ids(job: Dict[str, Any], array_job_id: Any, task_id: Any, task_string: Any) -> List[str]:
+    """The ids one record describes: its own id, one array task, or a collapsed range of tasks."""
+    master = _number(array_job_id)
+    if not master:
+        return [_job_id(job)]
+    task = _number(task_id)
+    if task is not None:
+        return [f"{master}_{task}"]
+    if isinstance(task_string, str) and task_string.strip():
+        try:
+            return [f"{master}_{t}" for t in expand_array(task_string)]
+        except ValueError:
+            pass  # an unreadable range: fall back to the array as a whole
+    return [str(master)]
 
 
 def _reason(value: Any) -> Optional[str]:

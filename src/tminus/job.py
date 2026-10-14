@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from .backend.base import UPDATABLE_FIELDS, Backend
 from .errors import InvalidUpdateError, JobNotFound
@@ -28,6 +28,18 @@ class Job:
     backend: Backend
     status: Optional[JobStatus] = field(default=None, compare=False)
     submit_dir: Optional[str] = field(default=None, compare=False)
+
+    @property
+    def tasks(self) -> List["Job"]:
+        """A handle per task of an array job, in task order (empty for other jobs).
+
+        Taken from the spec when tminus submitted the job, otherwise from the scheduler.
+        """
+        if self.spec is not None:
+            task_ids = [f"{self.job_id}_{task}" for task in self.spec.task_ids()]
+        else:
+            task_ids = list((self.status or self.refresh()).tasks)
+        return [Job(task_id, self.spec, self.backend, submit_dir=self.submit_dir) for task_id in task_ids]
 
     def refresh(self) -> JobStatus:
         """Ask the scheduler for this job's current status, remember it, and return it.

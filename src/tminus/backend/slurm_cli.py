@@ -45,6 +45,8 @@ def sbatch_args(spec: JobSpec) -> List[str]:
         value = getattr(spec, field_name)
         if value is not None:
             args.append(f"{option}={value}")
+    if spec.array is not None:
+        args.append(f"--array={spec.array}")
     if spec.depends_on:
         args.append(f"--dependency={spec.dependency_type.value}:" + ":".join(spec.depends_on))
     if spec.tags:
@@ -76,26 +78,45 @@ class SlurmCliBackend(Backend):
         return job_id
 
     def status(self, job_ids: Sequence[str]) -> Dict[str, JobStatus]:
-        """Ask squeue about every job, then sacct about any squeue no longer knows."""
+        """Ask squeue about every job, then sacct about any squeue no longer knows.
+
+        An array job is summarised from all of its tasks. Finished tasks drop
+        out of squeue, so for an array squeue still lists, sacct is asked too
+        and squeue's view wins for tasks both report.
+        """
         wanted = list(dict.fromkeys(job_ids))
         if not wanted:
             return {}
-        found = self._query("squeue", wanted, parse_squeue)
-        missing = [job_id for job_id in wanted if job_id not in found]
-        if missing:
-            found.update(self._query("sacct", missing, parse_sacct))
-        return found
+        queued = self._query("squeue", wanted, parse_squeue)
+        direct = {s.job_id: s for s in queued if s.job_id in wanted}
+        arrays_in_queue = [job_id for job_id in wanted if _tasks_of(job_id, queued)]
+        ask_sacct = [job_id for job_id in wanted if job_id not in direct and job_id not in arrays_in_queue]
+        accounted = self._query("sacct", ask_sacct + arrays_in_queue, parse_sacct) if (
+            ask_sacct or arrays_in_queue) else []
+        result: Dict[str, JobStatus] = {}
+        for job_id in wanted:
+            tasks = {**_tasks_of(job_id, accounted), **_tasks_of(job_id, queued)}
+            if tasks:
+                result[job_id] = JobStatus.for_array(job_id, tasks)
+            elif job_id in direct:
+                result[job_id] = direct[job_id]
+            else:
+                found = [s for s in accounted if s.job_id == job_id]
+                if found:
+                    result[job_id] = found[-1]
+        return result
 
-    def _query(self, program, job_ids, parse) -> Dict[str, JobStatus]:
+    def _query(self, program, job_ids, parse) -> List[JobStatus]:
         result = self._runner.run([program, "--json", "--jobs=" + ",".join(job_ids)])
         if result.returncode != 0:
             # squeue rejects ids slurmctld has already forgotten; sacct still has them.
             if program == "squeue" and "Invalid job id" in result.stderr:
                 return {}
             raise SlurmCommandError(result.args, result.returncode, result.stderr)
-        # Older Slurm ignores --jobs when printing JSON, so filter here as well.
+        # Older Slurm ignores --jobs when printing JSON, so filter here as well: keep the
+        # jobs asked for, plus the tasks of any array asked for.
         wanted = set(job_ids)
-        return {status.job_id: status for status in parse(result.stdout) if status.job_id in wanted}
+        return [s for s in parse(result.stdout) if s.job_id in wanted or s.job_id.split("_", 1)[0] in wanted]
 
     def cancel(self, job_ids: Sequence[str]) -> None:
         result = self._runner.run(["scancel"] + list(job_ids))
@@ -120,3 +141,11 @@ class SlurmCliBackend(Backend):
         result = self._runner.run(["scontrol"] + args)
         if result.returncode != 0:
             raise SlurmCommandError(result.args, result.returncode, result.stderr)
+
+
+def _tasks_of(array_id: str, statuses: List[JobStatus]) -> Dict[str, JobStatus]:
+    """The task statuses belonging to ``array_id`` (none if it is a task id itself)."""
+    if "_" in array_id:
+        return {}
+    prefix = array_id + "_"
+    return {s.job_id: s for s in statuses if s.job_id.startswith(prefix)}

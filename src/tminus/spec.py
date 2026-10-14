@@ -12,6 +12,29 @@ from .errors import InvalidSpecError
 # Tag keys and values are single words so they survive the trip through Slurm's --comment.
 _TAG_WORD = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
 _COMMENT_PREFIX = "tminus:"
+# An sbatch --array value: comma-separated N, N-M, or N-M:STEP items, optionally ending in %LIMIT.
+_ARRAY_ITEM = r"\d+(?:-\d+(?::[1-9]\d*)?)?"
+_ARRAY = re.compile(rf"^{_ARRAY_ITEM}(?:,{_ARRAY_ITEM})*(?:%[1-9]\d*)?$")
+
+
+def expand_array(text: str) -> List[str]:
+    """Every task id in an array expression such as ``0-9:2,15%4`` (brackets and limit ignored).
+
+    Raises ValueError for anything that is not an array expression.
+    """
+    body = text.strip().strip("[]").split("%", 1)[0]
+    task_ids: List[str] = []
+    for item in body.split(","):
+        first, sep, rest = item.partition("-")
+        if not sep:
+            task_ids.append(str(int(first)))
+            continue
+        last, _, step = rest.partition(":")
+        start, stop, stride = int(first), int(last), int(step or 1)
+        if stop < start or stride < 1:
+            raise ValueError(f"bad array range {item!r}")
+        task_ids.extend(str(n) for n in range(start, stop + 1, stride))
+    return task_ids
 
 
 def tags_to_comment(tags: Dict[str, str]) -> str:
@@ -52,6 +75,7 @@ class JobSpec:
     single words (letters, digits, and ``_ . : / @ + -``). ``depends_on``
     lists jobs (Job handles or job ids) that must reach the condition in
     ``dependency_type`` (default: afterok) before this one may start.
+    ``array`` makes this an array job (sbatch ``--array``, e.g. ``0-9%4``).
     ``scratch_paths`` are files or directories the job owns (per-job scratch
     space, for example) that ``tminus.cleanup.purge`` may delete along with
     its logs; they accept the same ``%j``/``%x``/``%u`` patterns as ``output``.
@@ -76,6 +100,7 @@ class JobSpec:
     depends_on: List[Any] = field(default_factory=list)
     dependency_type: DependencyType = DependencyType.AFTEROK
     scratch_paths: List[str] = field(default_factory=list)
+    array: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Normalise Job handles to ids and strings to DependencyType (the dataclass is frozen).
@@ -91,12 +116,26 @@ class JobSpec:
                 ) from None
         if (self.command is None) == (self.script is None):
             raise InvalidSpecError("a JobSpec needs exactly one of command or script")
+        if self.array is not None:
+            try:
+                valid = bool(_ARRAY.match(self.array)) and bool(expand_array(self.array))
+            except ValueError:
+                valid = False
+            if not valid:
+                raise InvalidSpecError(
+                    f"invalid array {self.array!r}: expected items like 0-9, 1,3,5, or 0-15:4, "
+                    "optionally ending in %LIMIT"
+                )
         for key, value in self.tags.items():
             if not (_TAG_WORD.match(key) and _TAG_WORD.match(value)):
                 raise InvalidSpecError(
                     f"tag {key}={value} is not allowed: keys and values must be single words "
                     "of letters, digits, and _ . : / @ + -"
                 )
+
+    def task_ids(self) -> List[str]:
+        """The array task ids this spec asks for, in order (empty if it is not an array job)."""
+        return expand_array(self.array) if self.array is not None else []
 
     def to_dict(self) -> Dict[str, Any]:
         """A JSON-ready copy of every field."""

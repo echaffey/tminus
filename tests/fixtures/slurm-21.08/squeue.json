@@ -42,6 +42,34 @@
       "cpus": 4,
       "time_limit": 60,
       "comment": "an ordinary user comment"
+    },
+    {
+      "account": "lab",
+      "job_id": 2003,
+      "name": "sweep",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": "RUNNING",
+      "state_reason": "None",
+      "exit_code": 0,
+      "array_job_id": 2000,
+      "array_task_id": 2,
+      "array_task_string": "",
+      "comment": "tminus:exp=arrays"
+    },
+    {
+      "account": "lab",
+      "job_id": 2000,
+      "name": "sweep",
+      "partition": "gpu",
+      "user_name": "u",
+      "job_state": "PENDING",
+      "state_reason": "JobArrayTaskLimit",
+      "exit_code": 0,
+      "array_job_id": 2000,
+      "array_task_id": null,
+      "array_task_string": "3%2",
+      "comment": "tminus:exp=arrays"
     }
   ]
 }

@@ -18,6 +18,9 @@ class FakeBackend(Backend):
     New jobs start PENDING and stay there until moved with ``set_state``. A job
     with dependencies is held with reason ``Dependency`` until they are met,
     or marked ``DependencyNeverSatisfied`` once they cannot be, as Slurm does.
+    An array job gets one task per array index (``"1000_0"``, ``"1000_1"``,
+    ...); its own status summarises them, and acting on the array acts on
+    every task.
     ``submitted`` maps each job id to the JobSpec it was submitted with, and
     ``updates`` to the changes applied with ``update`` (both in this process only).
 
@@ -36,23 +39,35 @@ class FakeBackend(Backend):
         self.updates: Dict[str, Dict[str, Any]] = {}
         # job id -> (dependency type, ids it depends on)
         self._dependencies: Dict[str, Tuple[str, List[str]]] = {}
+        # array job id -> its task ids
+        self._arrays: Dict[str, List[str]] = {}
 
     def submit(self, spec: JobSpec) -> str:
         self._load()
         job_id = str(self._next_id)
         self._next_id += 1
         self.submitted[job_id] = spec
-        self._statuses[job_id] = JobStatus(job_id, JobState.PENDING, tags=dict(spec.tags))
-        if spec.depends_on:
-            self._dependencies[job_id] = (spec.dependency_type.value, list(spec.depends_on))
-            self._statuses[job_id] = JobStatus(job_id, JobState.PENDING, "Dependency", tags=dict(spec.tags))
-            self._check_dependencies()
+        ids = [f"{job_id}_{task}" for task in spec.task_ids()] or [job_id]
+        if spec.array is not None:
+            self._arrays[job_id] = ids
+        for one_id in ids:
+            self._statuses[one_id] = JobStatus(one_id, JobState.PENDING, tags=dict(spec.tags))
+            if spec.depends_on:
+                self._dependencies[one_id] = (spec.dependency_type.value, list(spec.depends_on))
+                self._statuses[one_id] = JobStatus(one_id, JobState.PENDING, "Dependency", tags=dict(spec.tags))
+        self._check_dependencies()
         self._save()
         return job_id
 
     def status(self, job_ids: Sequence[str]) -> Dict[str, JobStatus]:
         self._load()
-        return {job_id: self._statuses[job_id] for job_id in job_ids if job_id in self._statuses}
+        found = {job_id: self._current(job_id) for job_id in job_ids}
+        return {job_id: status for job_id, status in found.items() if status is not None}
+
+    def _current(self, job_id: str) -> Optional[JobStatus]:
+        if job_id in self._arrays:
+            return JobStatus.for_array(job_id, {t: self._statuses[t] for t in self._arrays[job_id]})
+        return self._statuses.get(job_id)
 
     def set_state(
         self,
@@ -61,34 +76,33 @@ class FakeBackend(Backend):
         reason: Optional[str] = None,
         exit_code: Optional[int] = None,
     ) -> None:
-        """Move a submitted job to ``state``, as the scheduler would."""
+        """Move a submitted job (or every task of an array) to ``state``, as the scheduler would."""
         self._load()
-        if job_id not in self._statuses:
-            raise JobNotFound(job_id)
-        tags = self._statuses[job_id].tags
-        self._statuses[job_id] = JobStatus(job_id, state, reason, exit_code, tags)
+        for one_id in self._expand([job_id]):
+            tags = self._statuses[one_id].tags
+            self._statuses[one_id] = JobStatus(one_id, state, reason, exit_code, tags)
         self._check_dependencies()
         self._save()
 
     def cancel(self, job_ids: Sequence[str]) -> None:
-        for job_id in self._known(job_ids):
+        for job_id in self._expand(job_ids):
             if not self._statuses[job_id].state.is_terminal:
                 self.set_state(job_id, JobState.CANCELLED)
 
     def hold(self, job_ids: Sequence[str]) -> None:
-        for job_id in self._known(job_ids):
+        for job_id in self._expand(job_ids):
             self.set_state(job_id, JobState.PENDING, reason="JobHeldUser")
 
     def release(self, job_ids: Sequence[str]) -> None:
-        for job_id in self._known(job_ids):
+        for job_id in self._expand(job_ids):
             self.set_state(job_id, JobState.PENDING)
 
     def requeue(self, job_ids: Sequence[str]) -> None:
-        for job_id in self._known(job_ids):
+        for job_id in self._expand(job_ids):
             self.set_state(job_id, JobState.PENDING)
 
     def update(self, job_id: str, changes: Dict[str, Any]) -> None:
-        self._known([job_id])
+        self._expand([job_id])
         self.updates.setdefault(job_id, {}).update(changes)
 
     def _check_dependencies(self) -> None:
@@ -97,17 +111,23 @@ class FakeBackend(Backend):
             current = self._statuses[job_id]
             if current.state is not JobState.PENDING or current.reason != "Dependency":
                 continue
-            verdict = _dependency_verdict(DependencyType(kind), [self._statuses.get(d) for d in depends_on])
+            verdict = _dependency_verdict(DependencyType(kind), [self._current(d) for d in depends_on])
             if verdict is not None:
                 reason = None if verdict else "DependencyNeverSatisfied"
                 self._statuses[job_id] = JobStatus(job_id, JobState.PENDING, reason, tags=current.tags)
 
-    def _known(self, job_ids: Sequence[str]) -> Sequence[str]:
+    def _expand(self, job_ids: Sequence[str]) -> List[str]:
+        """The individual job and task ids behind ``job_ids``; raises JobNotFound for unknown ones."""
         self._load()
-        unknown = [job_id for job_id in job_ids if job_id not in self._statuses]
-        if unknown:
-            raise JobNotFound(unknown[0])
-        return job_ids
+        expanded: List[str] = []
+        for job_id in job_ids:
+            if job_id in self._arrays:
+                expanded.extend(self._arrays[job_id])
+            elif job_id in self._statuses:
+                expanded.append(job_id)
+            else:
+                raise JobNotFound(job_id)
+        return expanded
 
     def _load(self) -> None:
         if self._state_path is None or not os.path.exists(self._state_path):
@@ -116,6 +136,7 @@ class FakeBackend(Backend):
             data = json.load(handle)
         self._next_id = data["next_id"]
         self._dependencies = {job_id: (kind, ids) for job_id, (kind, ids) in data.get("dependencies", {}).items()}
+        self._arrays = data.get("arrays", {})
         self._statuses = {job_id: _status_from_json(job_id, raw) for job_id, raw in data["jobs"].items()}
 
     def _save(self) -> None:
@@ -125,6 +146,7 @@ class FakeBackend(Backend):
             "next_id": self._next_id,
             "jobs": {job_id: _status_to_json(status) for job_id, status in self._statuses.items()},
             "dependencies": self._dependencies,
+            "arrays": self._arrays,
         }
         directory = os.path.dirname(os.path.abspath(self._state_path))
         os.makedirs(directory, exist_ok=True)

@@ -170,17 +170,36 @@ _PATTERN = re.compile(r"%(.)")
 
 
 def _job_paths(job: Job) -> List[Tuple[str, bool]]:
-    """``(absolute path, fully expanded?)`` for every file or directory the job owns."""
+    """``(absolute path, fully expanded?)`` for every file or directory the job owns.
+
+    An array job's paths are expanded once per task, with ``%A`` as the array
+    id and ``%a`` as the task id. ``%j`` is then the task's own job id, which
+    tminus does not know, so such paths are reported as unexpandable.
+    """
     spec = job.spec
     if spec is None:
         return []
-    patterns = [spec.output or "slurm-%j.out"]
+    default_name = "wrap" if spec.command is not None else os.path.basename(spec.script or "")
+    common = {"x": spec.name or default_name, "u": getpass.getuser(), "%": "%"}
+    if spec.array is None:
+        expansions = [dict(common, j=job.job_id, A=job.job_id)]
+    else:
+        expansions = [dict(common, A=job.job_id, a=task) for task in spec.task_ids()]
+    paths: List[Tuple[str, bool]] = []
+    for values in expansions:
+        for path in _expand_paths(job, spec, values):
+            if path not in paths:
+                paths.append(path)
+    return paths
+
+
+def _expand_paths(job: Job, spec, values: Dict[str, str]) -> List[Tuple[str, bool]]:
+    default_output = "slurm-%A_%a.out" if spec.array is not None else "slurm-%j.out"
+    patterns = [spec.output or default_output]
     if spec.error:
         patterns.append(spec.error)
     patterns.extend(spec.scratch_paths)
     base = spec.workdir or job.submit_dir
-    default_name = "wrap" if spec.command is not None else os.path.basename(spec.script or "")
-    values = {"j": job.job_id, "x": spec.name or default_name, "u": getpass.getuser(), "%": "%"}
     paths = []
     for pattern in patterns:
         if not os.path.isabs(pattern):

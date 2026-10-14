@@ -286,6 +286,10 @@ def _print_statuses(statuses: List[JobStatus]) -> None:
         exit_code = "-" if found.exit_code is None else str(found.exit_code)
         rows.append([found.job_id, found.state.value, exit_code, found.reason or "-"])
     _print_table(rows)
+    for found in statuses:
+        if found.tasks:
+            counts = ", ".join(f"{state.value}={n}" for state, n in found.task_counts().items())
+            print(f"{found.job_id} tasks: {counts}")
 
 
 def _print_table(rows: List[List[str]]) -> None:

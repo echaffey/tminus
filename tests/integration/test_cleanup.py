@@ -123,6 +123,17 @@ class PurgeTest(CleanupTestCase):
 
         self.assertFalse(os.path.exists(default_log))
 
+    def test_an_array_jobs_logs_are_expanded_per_task(self):
+        job = self.submit(JobState.COMPLETED, workdir=self.workdir, array="0-1")
+        logs = [os.path.join(self.workdir, f"slurm-{job.job_id}_{task}.out") for task in (0, 1)]
+        for path in logs:
+            open(path, "w").close()
+
+        results = self.purge(Policy.ALWAYS)
+
+        self.assertEqual(sorted(results[0].deleted), sorted(logs))
+        self.assertFalse(any(os.path.exists(path) for path in logs))
+
     def test_paths_with_patterns_tminus_cannot_expand_are_left_and_reported(self):
         job = self.submit(JobState.COMPLETED, workdir=self.workdir, output="logs/%N-%j.out")
 

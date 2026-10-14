@@ -15,3 +15,13 @@ Every set contains the same jobs:
 | 1003 | sacct | COMPLETED, exit 0 | `tminus:exp=exp42` |
 | 1004 | sacct | FAILED, exit 3 | none |
 | 1005 | sacct | TIMEOUT | none |
+
+Array jobs (all tagged `tminus:exp=arrays`):
+
+| Array | Task | Where | State |
+| --- | --- | --- | --- |
+| 2000 | 0 | sacct | COMPLETED, exit 0 |
+| 2000 | 1 | sacct | FAILED, exit 2 |
+| 2000 | 2 | squeue and sacct (unique job id 2003) | RUNNING |
+| 2000 | 3 | squeue (collapsed pending record `3%2`) and sacct (unstarted `3`) | PENDING (JobArrayTaskLimit) |
+| 2010 | 0, 1 | sacct | COMPLETED |
