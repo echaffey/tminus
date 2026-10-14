@@ -4,10 +4,10 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..errors import JobNotFound
-from ..spec import JobSpec
+from ..spec import DependencyType, JobSpec
 from ..state import JobState, JobStatus
 from .base import Backend
 
@@ -15,7 +15,9 @@ from .base import Backend
 class FakeBackend(Backend):
     """Accepts every submission and hands out increasing job ids.
 
-    New jobs start PENDING and stay there until moved with ``set_state``.
+    New jobs start PENDING and stay there until moved with ``set_state``. A job
+    with dependencies is held with reason ``Dependency`` until they are met,
+    or marked ``DependencyNeverSatisfied`` once they cannot be, as Slurm does.
     ``submitted`` maps each job id to the JobSpec it was submitted with, and
     ``updates`` to the changes applied with ``update`` (both in this process only).
 
@@ -32,6 +34,8 @@ class FakeBackend(Backend):
         self._statuses: Dict[str, JobStatus] = {}
         self.submitted: Dict[str, JobSpec] = {}
         self.updates: Dict[str, Dict[str, Any]] = {}
+        # job id -> (dependency type, ids it depends on)
+        self._dependencies: Dict[str, Tuple[str, List[str]]] = {}
 
     def submit(self, spec: JobSpec) -> str:
         self._load()
@@ -39,6 +43,10 @@ class FakeBackend(Backend):
         self._next_id += 1
         self.submitted[job_id] = spec
         self._statuses[job_id] = JobStatus(job_id, JobState.PENDING, tags=dict(spec.tags))
+        if spec.depends_on:
+            self._dependencies[job_id] = (spec.dependency_type.value, list(spec.depends_on))
+            self._statuses[job_id] = JobStatus(job_id, JobState.PENDING, "Dependency", tags=dict(spec.tags))
+            self._check_dependencies()
         self._save()
         return job_id
 
@@ -59,6 +67,7 @@ class FakeBackend(Backend):
             raise JobNotFound(job_id)
         tags = self._statuses[job_id].tags
         self._statuses[job_id] = JobStatus(job_id, state, reason, exit_code, tags)
+        self._check_dependencies()
         self._save()
 
     def cancel(self, job_ids: Sequence[str]) -> None:
@@ -82,6 +91,17 @@ class FakeBackend(Backend):
         self._known([job_id])
         self.updates.setdefault(job_id, {}).update(changes)
 
+    def _check_dependencies(self) -> None:
+        """Release dependent jobs whose dependencies are met; flag those that never can be."""
+        for job_id, (kind, depends_on) in self._dependencies.items():
+            current = self._statuses[job_id]
+            if current.state is not JobState.PENDING or current.reason != "Dependency":
+                continue
+            verdict = _dependency_verdict(DependencyType(kind), [self._statuses.get(d) for d in depends_on])
+            if verdict is not None:
+                reason = None if verdict else "DependencyNeverSatisfied"
+                self._statuses[job_id] = JobStatus(job_id, JobState.PENDING, reason, tags=current.tags)
+
     def _known(self, job_ids: Sequence[str]) -> Sequence[str]:
         self._load()
         unknown = [job_id for job_id in job_ids if job_id not in self._statuses]
@@ -95,6 +115,7 @@ class FakeBackend(Backend):
         with open(self._state_path, encoding="utf-8") as handle:
             data = json.load(handle)
         self._next_id = data["next_id"]
+        self._dependencies = {job_id: (kind, ids) for job_id, (kind, ids) in data.get("dependencies", {}).items()}
         self._statuses = {job_id: _status_from_json(job_id, raw) for job_id, raw in data["jobs"].items()}
 
     def _save(self) -> None:
@@ -103,6 +124,7 @@ class FakeBackend(Backend):
         data = {
             "next_id": self._next_id,
             "jobs": {job_id: _status_to_json(status) for job_id, status in self._statuses.items()},
+            "dependencies": self._dependencies,
         }
         directory = os.path.dirname(os.path.abspath(self._state_path))
         os.makedirs(directory, exist_ok=True)
@@ -121,3 +143,23 @@ def _status_to_json(status: JobStatus) -> Dict[str, Any]:
 def _status_from_json(job_id: str, raw: Dict[str, Any]) -> JobStatus:
     return JobStatus(job_id, JobState(raw["state"]), raw.get("reason"),
                      raw.get("exit_code"), raw.get("tags") or {})
+
+
+def _dependency_verdict(kind: DependencyType, dependencies: List[Optional[JobStatus]]) -> Optional[bool]:
+    """True once ``dependencies`` satisfy ``kind``, False once they never can, None while undecided."""
+    if any(status is None for status in dependencies):
+        return False  # depending on a job that does not exist
+    states = [status.state for status in dependencies]
+    finished = all(state.is_terminal for state in states)
+    if kind is DependencyType.AFTER:
+        return True if all(state is not JobState.PENDING for state in states) else None
+    if kind is DependencyType.AFTERANY:
+        return True if finished else None
+    if kind is DependencyType.AFTEROK:
+        if any(state.is_terminal and not state.is_success for state in states):
+            return False
+        return True if finished else None
+    # AFTERNOTOK
+    if any(state.is_success for state in states):
+        return False
+    return True if finished else None

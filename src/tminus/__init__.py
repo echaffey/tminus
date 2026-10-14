@@ -14,12 +14,13 @@ from .errors import (
     SlurmOutputError,
     SubmitError,
     TminusError,
+    UnsatisfiableDependency,
     WaitTimeout,
 )
 from .job import Job
 from . import aio
 from .monitor import PollPolicy, wait_all
-from .spec import JobSpec
+from .spec import DependencyType, JobSpec
 from .state import JobState, JobStatus
 from .store import Store
 
@@ -28,6 +29,7 @@ __version__ = "0.1.0"
 __all__ = [
     "Backend",
     "CommandTimeoutError",
+    "DependencyType",
     "InvalidSpecError",
     "InvalidUpdateError",
     "Job",
@@ -41,6 +43,7 @@ __all__ = [
     "Store",
     "SubmitError",
     "TminusError",
+    "UnsatisfiableDependency",
     "WaitTimeout",
     "aio",
     "get_backend",

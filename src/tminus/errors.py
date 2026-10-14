@@ -73,3 +73,17 @@ class WaitTimeout(TminusError):
 
 class InvalidUpdateError(TminusError):
     """A job update named a field that cannot be changed after submission."""
+
+
+class UnsatisfiableDependency(TminusError):
+    """Waited-on jobs can never start because their dependencies can no longer be met.
+
+    Slurm leaves such jobs pending indefinitely; they are not cancelled.
+    """
+
+    def __init__(self, job_ids: List[str]) -> None:
+        self.job_ids = list(job_ids)
+        super().__init__(
+            f"job(s) {', '.join(job_ids)} can never start: their dependencies can no longer be "
+            "satisfied (cancel them, or fix the dependency and release them)"
+        )

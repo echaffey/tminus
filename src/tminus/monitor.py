@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Iterable, Iterator, List, Optional, Sequence
 
-from .errors import JobNotFound, WaitTimeout
+from .errors import JobNotFound, UnsatisfiableDependency, WaitTimeout
 from .state import JobStatus
 from .store import Store
 
@@ -69,6 +69,9 @@ def wait_all(
         outstanding = [job for job in outstanding if not latest[job.job_id].state.is_terminal]
         if not outstanding:
             return {job.job_id: latest[job.job_id] for job in jobs}
+        stuck = never_starting(latest[job.job_id] for job in outstanding)
+        if stuck:
+            raise UnsatisfiableDependency(stuck)
         delay = next_delay(intervals, [deadline] if deadline is not None else [], clock)
         if delay is None:
             raise WaitTimeout(dict(latest), timeout)
@@ -91,6 +94,11 @@ def poll_once(jobs: Sequence[Job], store: Store) -> Dict[str, JobStatus]:
             job.status = latest[job.job_id] = found[job.job_id]
         store.record_statuses(backend.name, [found[job.job_id] for job in group])
     return latest
+
+
+def never_starting(statuses: Iterable[JobStatus]) -> List[str]:
+    """Ids of jobs that will never start because a dependency can no longer be met."""
+    return [status.job_id for status in statuses if status.dependency_never_satisfied]
 
 
 def next_delay(

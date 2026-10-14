@@ -45,6 +45,8 @@ def sbatch_args(spec: JobSpec) -> List[str]:
         value = getattr(spec, field_name)
         if value is not None:
             args.append(f"{option}={value}")
+    if spec.depends_on:
+        args.append(f"--dependency={spec.dependency_type.value}:" + ":".join(spec.depends_on))
     if spec.tags:
         args.append("--comment=" + tags_to_comment(spec.tags))
     args.extend(spec.extra_args)

@@ -144,6 +144,20 @@ class StatusCommandTest(unittest.TestCase):
         self.assertIn("PENDING", out)
         self.assertIn("unfinished", err)
 
+    def test_submit_can_depend_on_earlier_jobs(self):
+        _, out, _ = run_cli("submit", "--depends-on", self.pending, "--dependency-type", "afterany",
+                            "--wrap", "true")
+
+        spec = self.backend.submitted[out.strip()]
+        self.assertEqual(spec.depends_on, [self.pending])
+        self.assertIs(spec.dependency_type, tminus.DependencyType.AFTERANY)
+        self.assertEqual(self.backend.status([out.strip()])[out.strip()].reason, "Dependency")
+
+    def test_an_unknown_dependency_type_is_a_usage_error(self):
+        status, _, _ = run_cli("submit", "--depends-on", "1", "--dependency-type", "whenever", "--wrap", "true")
+
+        self.assertEqual(status, 2)
+
     def test_cancel_cancels_active_jobs_and_skips_finished_ones(self):
         status, out, _ = run_cli("cancel", self.pending, self.failed)
 

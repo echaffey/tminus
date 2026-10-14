@@ -12,8 +12,8 @@ import asyncio
 import time
 from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 
-from .errors import JobNotFound, WaitTimeout
-from .monitor import PollPolicy, next_delay, poll_once
+from .errors import JobNotFound, UnsatisfiableDependency, WaitTimeout
+from .monitor import PollPolicy, never_starting, next_delay, poll_once
 from .state import JobStatus
 from .store import Store
 
@@ -157,6 +157,8 @@ class _Coordinator:
             waiter.latest.update({job.job_id: latest[job.job_id] for job in waiter.jobs})
             if all(status.state.is_terminal for status in waiter.latest.values()):
                 waiter.future.set_result(dict(waiter.latest))
+            elif never_starting(waiter.latest.values()):
+                waiter.future.set_exception(UnsatisfiableDependency(never_starting(waiter.latest.values())))
             elif waiter.deadline is not None and waiter.deadline <= now:
                 waiter.future.set_exception(WaitTimeout(dict(waiter.latest), waiter.timeout))
             else:

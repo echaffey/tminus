@@ -5,7 +5,7 @@ import argparse
 import sys
 from typing import List, Optional, Tuple
 
-from . import Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, submit, wait_all
+from . import DependencyType, Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, submit, wait_all
 
 
 def _tag(text: str) -> Tuple[str, str]:
@@ -55,6 +55,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="extra sbatch argument, passed through as-is (repeatable), e.g. --sbatch-arg=--exclusive",
     )
     _add_tag_option(submit_cmd, "label the job (repeatable), e.g. --tag exp=exp42")
+    submit_cmd.add_argument(
+        "--depends-on", dest="depends_on", action="append", default=[], metavar="JOBID",
+        help="only start after this job (repeatable); see --dependency-type",
+    )
+    submit_cmd.add_argument(
+        "--dependency-type", dest="dependency_type", default="afterok",
+        choices=[kind.value for kind in DependencyType],
+        help="when dependent jobs may start (default: afterok, once all dependencies succeed)",
+    )
     submit_cmd.set_defaults(handler=_submit)
 
     status_cmd = commands.add_parser("status", help="show the current state of jobs")
@@ -116,6 +125,8 @@ def _submit(args: argparse.Namespace) -> int:
         error=args.error,
         extra_args=args.extra_args,
         tags=dict(args.tags),
+        depends_on=args.depends_on,
+        dependency_type=args.dependency_type,
     )
     print(submit(spec).job_id)
     return 0

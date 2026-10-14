@@ -97,3 +97,8 @@ class JobStatus:
     reason: Optional[str] = None
     exit_code: Optional[int] = None
     tags: Dict[str, str] = field(default_factory=dict)
+
+    @property
+    def dependency_never_satisfied(self) -> bool:
+        """True for a pending job whose dependencies can no longer be met, so it will never start."""
+        return not self.state.is_terminal and self.reason == "DependencyNeverSatisfied"
