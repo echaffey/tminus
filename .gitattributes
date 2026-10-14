@@ -1,0 +1,13 @@
+# Normalize line endings to LF in the repo and the working tree.
+# tminus runs on Linux, so scripts and fixtures must never pick up CRLF.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files
+*.db binary
+*.png binary
+*.gz binary
