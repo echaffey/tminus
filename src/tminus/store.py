@@ -14,9 +14,11 @@ import json
 import os
 import sqlite3
 import time
-from typing import Callable, Dict, Iterator, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from .spec import JobSpec
+from .state import JobState, JobStatus
 
 # Each entry upgrades the schema by one version; PRAGMA user_version records how many ran.
 _MIGRATIONS = [
@@ -37,7 +39,27 @@ _MIGRATIONS = [
     );
     CREATE INDEX tags_by_key_value ON tags (key, value);
     """,
+    """
+    CREATE TABLE history (
+        job       INTEGER NOT NULL REFERENCES jobs (id) ON DELETE CASCADE,
+        seen_at   REAL NOT NULL,
+        state     TEXT NOT NULL,
+        reason    TEXT,
+        exit_code INTEGER
+    );
+    CREATE INDEX history_by_job ON history (job, seen_at);
+    """,
 ]
+
+
+@dataclass(frozen=True)
+class HistoryEntry:
+    """One state change of a tracked job, stamped with when tminus first saw it."""
+
+    seen_at: float
+    state: JobState
+    reason: Optional[str]
+    exit_code: Optional[int]
 
 
 def default_path() -> str:
@@ -84,6 +106,41 @@ class Store:
         with self._transaction() as db:
             rows = db.execute(sql, params).fetchall()
         return [(job_id, JobSpec.from_dict(json.loads(spec))) for job_id, spec in rows]
+
+    def record_statuses(self, backend: str, statuses: Sequence[JobStatus]) -> None:
+        """Append each status to its job's history if its state changed since the last one.
+
+        Statuses of jobs the Store is not tracking are ignored.
+        """
+        now = self._clock()
+        with self._transaction() as db:
+            for status in statuses:
+                row = db.execute(
+                    "SELECT id FROM jobs WHERE backend = ? AND job_id = ?", (backend, status.job_id)
+                ).fetchone()
+                if row is None:
+                    continue
+                last = db.execute(
+                    "SELECT state FROM history WHERE job = ? ORDER BY seen_at DESC, rowid DESC LIMIT 1", row
+                ).fetchone()
+                if last is not None and last[0] == status.state.value:
+                    continue
+                db.execute(
+                    "INSERT INTO history (job, seen_at, state, reason, exit_code) VALUES (?, ?, ?, ?, ?)",
+                    (row[0], now, status.state.value, status.reason, status.exit_code),
+                )
+
+    def history(self, backend: str, job_id: str) -> List[HistoryEntry]:
+        """Every recorded state change of one job, oldest first."""
+        with self._transaction() as db:
+            rows = db.execute(
+                "SELECT h.seen_at, h.state, h.reason, h.exit_code FROM history h"
+                " JOIN jobs j ON j.id = h.job WHERE j.backend = ? AND j.job_id = ?"
+                " ORDER BY h.seen_at, h.rowid",
+                (backend, job_id),
+            ).fetchall()
+        return [HistoryEntry(seen_at, JobState(state), reason, exit_code)
+                for seen_at, state, reason, exit_code in rows]
 
     @contextlib.contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:

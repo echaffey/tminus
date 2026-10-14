@@ -13,8 +13,10 @@ from .errors import (
     SlurmOutputError,
     SubmitError,
     TminusError,
+    WaitTimeout,
 )
 from .job import Job
+from .monitor import PollPolicy, wait_all
 from .spec import JobSpec
 from .state import JobState, JobStatus
 from .store import Store
@@ -30,15 +32,18 @@ __all__ = [
     "JobNotFound",
     "JobState",
     "JobStatus",
+    "PollPolicy",
     "SlurmCommandError",
     "SlurmOutputError",
     "Store",
     "SubmitError",
     "TminusError",
+    "WaitTimeout",
     "get_backend",
     "jobs",
     "status",
     "submit",
+    "wait_all",
 ]
 
 

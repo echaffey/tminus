@@ -106,11 +106,43 @@ class StatusCommandTest(unittest.TestCase):
         job_ids = [line.split()[0] for line in out.strip().splitlines()[1:]]
         self.assertEqual(job_ids, [tagged])
 
+    def test_a_tag_that_matches_no_jobs_is_reported_plainly(self):
+        for command in ("status", "wait"):
+            with self.subTest(command=command):
+                status, _, err = run_cli(command, "--tag", "exp=nothing-has-this")
+
+                self.assertEqual(status, 1)
+                self.assertIn("no tracked jobs", err)
+                self.assertNotIn("Traceback", err)
+
     def test_a_tag_without_a_value_is_a_usage_error(self):
         status, _, err = run_cli("status", "--tag", "exp42")
 
         self.assertEqual(status, 2)
         self.assertIn("KEY=VALUE", err)
+
+    def test_wait_exits_zero_when_every_job_completed(self):
+        self.backend.set_state(self.pending, JobState.COMPLETED, exit_code=0)
+
+        status, out, _ = run_cli("wait", self.pending)
+
+        self.assertEqual(status, 0)
+        self.assertIn("COMPLETED", out)
+
+    def test_wait_exits_one_when_any_job_did_not_complete(self):
+        self.backend.set_state(self.pending, JobState.COMPLETED, exit_code=0)
+
+        status, out, _ = run_cli("wait", self.pending, self.failed)
+
+        self.assertEqual(status, 1)
+        self.assertIn("FAILED", out)
+
+    def test_wait_exits_124_when_the_timeout_expires(self):
+        status, out, err = run_cli("wait", "--timeout", "0", self.pending)
+
+        self.assertEqual(status, 124)
+        self.assertIn("PENDING", out)
+        self.assertIn("unfinished", err)
 
     def test_unknown_jobs_are_reported_and_make_the_exit_status_nonzero(self):
         status, out, err = run_cli("status", self.pending, "424242")

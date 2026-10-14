@@ -1,0 +1,89 @@
+"""Waiting for jobs: batched polling with backoff."""
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Dict, Iterator, List, Optional, Sequence
+
+from .errors import JobNotFound, WaitTimeout
+from .state import JobStatus
+from .store import Store
+
+if TYPE_CHECKING:
+    from .job import Job
+
+
+@dataclass(frozen=True)
+class PollPolicy:
+    """How often to ask the scheduler while waiting.
+
+    The first wait is ``initial`` seconds, each later one ``factor`` times
+    longer, never more than ``maximum``. The defaults keep a long wait to about
+    one query a minute, so many waiting scripts do not overload slurmctld.
+    """
+
+    initial: float = 5.0
+    factor: float = 1.5
+    maximum: float = 60.0
+
+    def intervals(self) -> Iterator[float]:
+        """The successive sleep intervals, forever."""
+        interval = self.initial
+        while True:
+            yield min(interval, self.maximum)
+            interval *= self.factor
+
+
+def wait_all(
+    jobs: Sequence[Job],
+    timeout: Optional[float] = None,
+    policy: Optional[PollPolicy] = None,
+    store: Optional[Store] = None,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> Dict[str, JobStatus]:
+    """Block until every job in ``jobs`` is terminal; return each job's final status.
+
+    Each poll asks every backend about all of its outstanding jobs in one
+    query. Each job's ``status`` is updated as polls come in, and every state
+    change seen is appended to the job's history in the Store. If ``timeout``
+    seconds pass first, raises WaitTimeout carrying the latest statuses; the
+    jobs themselves are left running. Raises JobNotFound if the scheduler has
+    no record of a job. ``sleep`` and ``clock`` exist so tests and simulations
+    can run without real time passing.
+    """
+    if policy is None:
+        policy = PollPolicy()
+    if store is None:
+        store = Store()
+    deadline = None if timeout is None else clock() + timeout
+    intervals = policy.intervals()
+    latest: Dict[str, JobStatus] = {}
+    outstanding = list({job.job_id: job for job in jobs}.values())
+    while True:
+        for group in _by_backend(outstanding):
+            backend = group[0].backend
+            found = backend.status([job.job_id for job in group])
+            for job in group:
+                if job.job_id not in found:
+                    raise JobNotFound(job.job_id)
+                job.status = latest[job.job_id] = found[job.job_id]
+            store.record_statuses(backend.name, [found[job.job_id] for job in group])
+        outstanding = [job for job in outstanding if not latest[job.job_id].state.is_terminal]
+        if not outstanding:
+            return {job.job_id: latest[job.job_id] for job in jobs}
+        interval = next(intervals)
+        if deadline is not None:
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise WaitTimeout(dict(latest), timeout)
+            interval = min(interval, remaining)
+        sleep(interval)
+
+
+def _by_backend(jobs: Sequence[Job]) -> List[List[Job]]:
+    """Group jobs by the Backend object they belong to, keeping their order."""
+    groups: Dict[int, List[Job]] = {}
+    for job in jobs:
+        groups.setdefault(id(job.backend), []).append(job)
+    return list(groups.values())

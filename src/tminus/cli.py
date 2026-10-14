@@ -5,7 +5,7 @@ import argparse
 import sys
 from typing import List, Optional, Tuple
 
-from . import JobSpec, TminusError, __version__, jobs, status, submit
+from . import Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, submit, wait_all
 
 
 def _tag(text: str) -> Tuple[str, str]:
@@ -61,6 +61,17 @@ def _build_parser() -> argparse.ArgumentParser:
     status_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
     _add_tag_option(status_cmd, "include every tracked job with this tag (repeatable; all must match)")
     status_cmd.set_defaults(handler=_status)
+
+    wait_cmd = commands.add_parser(
+        "wait",
+        help="block until jobs finish",
+        description="Block until every job is finished, then show their final states. Exits 0 if "
+        "every job completed, 1 if any did not, and 124 if the timeout expired first.",
+    )
+    wait_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
+    _add_tag_option(wait_cmd, "include every tracked job with this tag (repeatable; all must match)")
+    wait_cmd.add_argument("--timeout", type=float, metavar="SECONDS", help="give up after this long")
+    wait_cmd.set_defaults(handler=_wait)
     return parser
 
 
@@ -88,23 +99,48 @@ def _submit(args: argparse.Namespace) -> int:
 
 
 def _status(args: argparse.Namespace) -> int:
-    job_ids = list(args.job_ids)
-    if args.tags:
-        job_ids += [job.job_id for job in jobs(tags=dict(args.tags)) if job.job_id not in job_ids]
-    elif not job_ids:
-        raise TminusError("give at least one JOBID or --tag")
-    statuses = status(job_ids)
-    rows = [["JOBID", "STATE", "EXIT", "REASON"]]
-    for job_id in job_ids:
-        found = statuses.get(job_id)
-        if found is not None:
-            exit_code = "-" if found.exit_code is None else str(found.exit_code)
-            rows.append([job_id, found.state.value, exit_code, found.reason or "-"])
-    _print_table(rows)
-    missing = [job_id for job_id in job_ids if job_id not in statuses]
+    selected = _selected_jobs(args)
+    statuses = selected[0].backend.status([job.job_id for job in selected])
+    _print_statuses([statuses[job.job_id] for job in selected if job.job_id in statuses])
+    missing = [job.job_id for job in selected if job.job_id not in statuses]
     for job_id in missing:
         print(f"tminus: error: no record of job {job_id}", file=sys.stderr)
     return 1 if missing else 0
+
+
+def _wait(args: argparse.Namespace) -> int:
+    selected = _selected_jobs(args)
+    try:
+        statuses = wait_all(selected, timeout=args.timeout)
+    except WaitTimeout as exc:
+        _print_statuses([exc.statuses[job.job_id] for job in selected if job.job_id in exc.statuses])
+        print(f"tminus: error: {exc}", file=sys.stderr)
+        return 124
+    _print_statuses([statuses[job.job_id] for job in selected])
+    return 0 if all(found.state.is_success for found in statuses.values()) else 1
+
+
+def _selected_jobs(args: argparse.Namespace) -> List[Job]:
+    """The jobs named by JOBID arguments followed by those matching every --tag, without repeats."""
+    backend = get_backend()
+    selected = {job_id: Job(job_id, None, backend) for job_id in args.job_ids}
+    if args.tags:
+        for job in jobs(tags=dict(args.tags), backend=backend):
+            selected.setdefault(job.job_id, job)
+    elif not selected:
+        raise TminusError("give at least one JOBID or --tag")
+    if not selected:
+        wanted = " ".join(f"{key}={value}" for key, value in args.tags)
+        raise TminusError(f"no tracked jobs have every tag in: {wanted}")
+    return list(selected.values())
+
+
+def _print_statuses(statuses: List[JobStatus]) -> None:
+    rows = [["JOBID", "STATE", "EXIT", "REASON"]]
+    for found in statuses:
+        exit_code = "-" if found.exit_code is None else str(found.exit_code)
+        rows.append([found.job_id, found.state.value, exit_code, found.reason or "-"])
+    _print_table(rows)
 
 
 def _print_table(rows: List[List[str]]) -> None:

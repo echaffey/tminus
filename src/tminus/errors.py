@@ -1,7 +1,10 @@
 """Exceptions raised by tminus. Every one a caller might handle subclasses TminusError."""
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from .state import JobStatus
 
 
 class TminusError(Exception):
@@ -53,3 +56,16 @@ class SlurmCommandError(TminusError):
 
 class CommandTimeoutError(SlurmCommandError):
     """A Slurm command was still running when its timeout expired."""
+
+
+class WaitTimeout(TminusError):
+    """Jobs were still unfinished when a wait's timeout expired.
+
+    ``statuses`` holds the latest status seen for every job waited on. The jobs
+    themselves are untouched and keep running.
+    """
+
+    def __init__(self, statuses: Dict[str, JobStatus], timeout: Optional[float]) -> None:
+        self.statuses = statuses
+        unfinished = sorted(job_id for job_id, status in statuses.items() if not status.state.is_terminal)
+        super().__init__(f"{len(unfinished)} job(s) still unfinished after {timeout} seconds: {', '.join(unfinished)}")

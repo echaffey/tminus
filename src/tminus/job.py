@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from .errors import JobNotFound
+from .monitor import wait_all
 from .spec import JobSpec
 from .state import JobStatus
 
@@ -37,3 +38,11 @@ class Job:
             raise JobNotFound(self.job_id)
         self.status = found[self.job_id]
         return self.status
+
+    def wait(self, timeout: Optional[float] = None, **options: Any) -> JobStatus:
+        """Block until this job is terminal and return its final status.
+
+        Takes the same options as ``tminus.wait_all``; raises WaitTimeout if
+        ``timeout`` seconds pass first.
+        """
+        return wait_all([self], timeout=timeout, **options)[self.job_id]
