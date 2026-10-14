@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""Run tminus straight from a checkout, with nothing installed.
+
+Put this repo's bin/ on PATH (or symlink this file into a directory on PATH);
+it finds src/ relative to its own real location.
+"""
+import os
+import sys
+
+_REPO = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.join(_REPO, "src"))
+
+from tminus.cli import main  # noqa: E402
+
+sys.exit(main())
