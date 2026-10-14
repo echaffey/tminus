@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Sequence
 
 from ..spec import JobSpec
+from ..report import JobUsage
 from ..state import JobStatus
 
 
@@ -51,3 +52,7 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def update(self, job_id: str, changes: Dict[str, Any]) -> None:
         """Change fields of a submitted job. ``changes`` uses names from UPDATABLE_FIELDS."""
+
+    @abc.abstractmethod
+    def usage(self, job_ids: Sequence[str]) -> List[JobUsage]:
+        """Accounting figures for each job, in the order asked; an array gives one entry per task."""

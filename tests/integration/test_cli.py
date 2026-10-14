@@ -200,6 +200,12 @@ class StatusCommandTest(unittest.TestCase):
         self.assertIs(spec.dependency_type, tminus.DependencyType.AFTERANY)
         self.assertEqual(self.backend.status([out.strip()])[out.strip()].reason, "Dependency")
 
+    def test_submit_can_create_an_array_job(self):
+        _, out, _ = run_cli("submit", "--array", "0-2%2", "--wrap", "true")
+
+        self.assertEqual(self.backend.submitted[out.strip()].array, "0-2%2")
+        self.assertEqual(len(self.backend.status([out.strip()])[out.strip()].tasks), 3)
+
     def test_an_unknown_dependency_type_is_a_usage_error(self):
         status, _, _ = run_cli("submit", "--depends-on", "1", "--dependency-type", "whenever", "--wrap", "true")
 
@@ -266,6 +272,15 @@ class StatusCommandTest(unittest.TestCase):
 
         self.assertEqual(status, 0)
         self.assertIn(f"{array} tasks: COMPLETED=1, PENDING=2", out)
+
+    def test_report_prints_a_table_or_csv_or_json(self):
+        for fmt, marker in (("table", "CPU_EFF"), ("csv", "cpu_efficiency,"), ("json", '"summary"')):
+            with self.subTest(format=fmt):
+                status, out, _ = run_cli("report", self.pending, self.failed, "--format", fmt)
+
+                self.assertEqual(status, 0)
+                self.assertIn(marker, out)
+                self.assertIn(self.failed, out)
 
     def test_unknown_jobs_are_reported_and_make_the_exit_status_nonzero(self):
         status, out, err = run_cli("status", self.pending, "424242")

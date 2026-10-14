@@ -5,7 +5,7 @@ import argparse
 import sys
 from typing import List, Optional, Tuple
 
-from . import DependencyType, InvalidAgeError, Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, prune, submit, wait_all
+from . import DependencyType, InvalidAgeError, Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, prune, report, submit, wait_all
 from . import cleanup
 from .cleanup import Policy, parse_age
 
@@ -52,6 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     submit_cmd.add_argument("--cpus", type=int, help="CPUs per task")
     submit_cmd.add_argument("--mem", help="memory per node, e.g. 16G")
     submit_cmd.add_argument("--time", help="time limit, e.g. 02:00:00")
+    submit_cmd.add_argument("--array", help="submit an array job, e.g. 0-9%%4")
     submit_cmd.add_argument("--workdir", help="working directory for the job")
     submit_cmd.add_argument("--output", help="stdout path (sbatch filename patterns allowed)")
     submit_cmd.add_argument("--error", help="stderr path (sbatch filename patterns allowed)")
@@ -135,6 +136,17 @@ def _build_parser() -> argparse.ArgumentParser:
         control_cmd.add_argument("job_ids", nargs="+", metavar="JOBID")
         control_cmd.set_defaults(handler=_control, action=name)
 
+    report_cmd = commands.add_parser(
+        "report",
+        help="show how well jobs used what they asked for",
+        description="Report each job's state, elapsed time, and CPU, memory, and time-limit "
+        "efficiency from Slurm accounting, with a summary. Array jobs are reported per task.",
+    )
+    report_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
+    _add_tag_option(report_cmd, "include every tracked job with this tag (repeatable; all must match)")
+    report_cmd.add_argument("--format", choices=("table", "csv", "json"), default="table")
+    report_cmd.set_defaults(handler=_report)
+
     prune_cmd = commands.add_parser(
         "prune",
         help="forget old finished jobs (dry run unless --yes)",
@@ -162,6 +174,7 @@ def _submit(args: argparse.Namespace) -> int:
         cpus=args.cpus,
         mem=args.mem,
         time=args.time,
+        array=args.array,
         workdir=args.workdir,
         output=args.output,
         error=args.error,
@@ -253,6 +266,14 @@ def _control(args: argparse.Namespace) -> int:
     backend = get_backend()
     for job_id in args.job_ids:
         getattr(Job(job_id, None, backend), args.action)()
+    return 0
+
+
+def _report(args: argparse.Namespace) -> int:
+    selected = _selected_jobs(args)
+    result = report(jobs=selected, backend=selected[0].backend)
+    output = {"table": result.to_table, "csv": result.to_csv, "json": result.to_json}[args.format]()
+    sys.stdout.write(output if output.endswith("\n") else output + "\n")
     return 0
 
 

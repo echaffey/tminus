@@ -24,6 +24,7 @@ from .cleanup import Policy, prune
 from .job import Job
 from . import aio
 from .monitor import PollPolicy, wait_all
+from .report import JobUsage, Report
 from .spec import DependencyType, JobSpec
 from .state import JobState, JobStatus
 from .store import Store
@@ -42,8 +43,10 @@ __all__ = [
     "JobNotFound",
     "JobState",
     "JobStatus",
+    "JobUsage",
     "Policy",
     "PollPolicy",
+    "Report",
     "SlurmCommandError",
     "SlurmOutputError",
     "Store",
@@ -56,6 +59,7 @@ __all__ = [
     "get_backend",
     "jobs",
     "prune",
+    "report",
     "status",
     "submit",
     "wait_all",
@@ -103,3 +107,24 @@ def status(job_ids: Sequence[str], backend: Optional[Backend] = None) -> Dict[st
     if backend is None:
         backend = get_backend()
     return backend.status(list(job_ids))
+
+
+def report(
+    tags: Optional[Dict[str, str]] = None,
+    jobs: Optional[Sequence[Job]] = None,
+    backend: Optional[Backend] = None,
+    store: Optional[Store] = None,
+) -> Report:
+    """A Report on ``jobs``, or else on every tracked job carrying all of ``tags``.
+
+    Figures come from one accounting query. Array jobs are reported task by task.
+    """
+    if backend is None:
+        backend = get_backend()
+    if store is None:
+        store = Store()
+    if jobs is None:
+        job_ids = [tracked.job_id for tracked in store.find(backend.name, tags)]
+    else:
+        job_ids = [job.job_id for job in jobs]
+    return Report(backend.usage(job_ids))

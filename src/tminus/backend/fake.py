@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..errors import JobNotFound
 from ..spec import DependencyType, JobSpec
+from ..report import JobUsage
 from ..state import JobState, JobStatus
 from .base import Backend
 
@@ -41,6 +42,8 @@ class FakeBackend(Backend):
         self._dependencies: Dict[str, Tuple[str, List[str]]] = {}
         # array job id -> its task ids
         self._arrays: Dict[str, List[str]] = {}
+        # job id -> JobUsage fields set with set_usage (in this process only)
+        self._usage: Dict[str, Dict[str, Any]] = {}
 
     def submit(self, spec: JobSpec) -> str:
         self._load()
@@ -104,6 +107,19 @@ class FakeBackend(Backend):
     def update(self, job_id: str, changes: Dict[str, Any]) -> None:
         self._expand([job_id])
         self.updates.setdefault(job_id, {}).update(changes)
+
+    def usage(self, job_ids: Sequence[str]) -> List[JobUsage]:
+        """Each job's state from the fake scheduler, plus any figures given to ``set_usage``."""
+        usages = []
+        for one_id in self._expand(job_ids):
+            status = self._statuses[one_id]
+            usages.append(JobUsage(one_id, status.state, status.exit_code, **self._usage.get(one_id, {})))
+        return usages
+
+    def set_usage(self, job_id: str, **figures: Any) -> None:
+        """Set accounting figures (JobUsage fields such as elapsed or peak_memory) for a job."""
+        self._expand([job_id])
+        self._usage.setdefault(job_id, {}).update(figures)
 
     def _check_dependencies(self) -> None:
         """Release dependent jobs whose dependencies are met; flag those that never can be."""

@@ -16,6 +16,15 @@ Every set contains the same jobs:
 | 1004 | sacct | FAILED, exit 3 | none |
 | 1005 | sacct | TIMEOUT | none |
 
+Accounting figures in `sacct.json` (efficiencies are checked against these by hand):
+
+| Job | Elapsed | Limit | CPU time | CPUs | Nodes | Memory | Peak RSS | CPU eff | Mem eff | Time used |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1003 | 3600 s | 120 min | 10800 s | 8 | 2 | 32 GiB allocated | 8 GiB | 37.5% | 50% (8 of 16 GiB per node) | 50% |
+| 1004 | 600 s | 60 min | 300 s | 2 | 1 | 2 GiB per CPU (23.11; 21.08 allocates 4 GiB) | 1 GiB | 25% | 25% | 16.7% |
+| 1005 | 3600 s | 60 min | 0 s | 1 | 1 | 1 GiB | none sampled | 0% | unavailable | 100% |
+| 2010_0, 2010_1 | 100 s | 10 min | 50 s | 1 | 1 | 1 GiB | 512 MiB | 50% | 50% | 16.7% |
+
 Array jobs (all tagged `tminus:exp=arrays`):
 
 | Array | Task | Where | State |

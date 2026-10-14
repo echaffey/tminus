@@ -124,7 +124,7 @@ class JobStatus:
         tasks share (TIMEOUT, CANCELLED, ...), or FAILED if they differ. The
         exit code is the highest any finished task reported.
         """
-        ordered = dict(sorted(tasks.items(), key=lambda item: _task_number(item[0])))
+        ordered = dict(sorted(tasks.items(), key=lambda item: task_number(item[0])))
         statuses = list(ordered.values())
         tags = statuses[0].tags if statuses else {}
         if not statuses:
@@ -152,6 +152,7 @@ class JobStatus:
 _RUNNING_LIKE = frozenset({JobState.RUNNING, JobState.COMPLETING, JobState.CONFIGURING, JobState.RESIZING})
 
 
-def _task_number(task_id: str) -> int:
+def task_number(task_id: str) -> int:
+    """The task index in an array task id such as ``1234_7`` (-1 if there is none), for sorting."""
     tail = task_id.rsplit("_", 1)[-1]
     return int(tail) if tail.isdigit() else -1

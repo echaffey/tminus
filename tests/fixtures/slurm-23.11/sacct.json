@@ -49,31 +49,18 @@
       "steps": [
         {
           "step": {
-            "id": {
-              "job_id": 1003,
-              "step_id": "batch"
-            },
             "name": "batch"
           },
-          "state": [
-            "COMPLETED"
-          ],
-          "exit_code": {
-            "status": [
-              "SUCCESS"
-            ],
-            "return_code": {
-              "set": true,
-              "infinite": false,
-              "number": 0
-            },
-            "signal": {
-              "id": {
-                "set": false,
-                "infinite": false,
-                "number": 0
-              },
-              "name": ""
+          "tres": {
+            "requested": {
+              "max": [
+                {
+                  "type": "mem",
+                  "name": "",
+                  "id": 2,
+                  "count": 8589934592
+                }
+              ]
             }
           }
         }
@@ -82,6 +69,73 @@
         "administrator": "",
         "job": "tminus:exp=exp42",
         "system": ""
+      },
+      "time": {
+        "elapsed": 3600,
+        "limit": {
+          "set": true,
+          "infinite": false,
+          "number": 120
+        },
+        "total": {
+          "seconds": 10800,
+          "microseconds": 0
+        }
+      },
+      "tres": {
+        "allocated": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 8
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 32768
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 2
+          }
+        ],
+        "requested": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 8
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 32768
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 2
+          }
+        ]
+      },
+      "required": {
+        "CPUs": 8,
+        "memory_per_cpu": {
+          "set": false,
+          "infinite": false,
+          "number": 0
+        },
+        "memory_per_node": {
+          "set": true,
+          "infinite": false,
+          "number": 16384
+        }
       }
     },
     {
@@ -114,11 +168,84 @@
           "name": ""
         }
       },
-      "steps": [],
+      "steps": [
+        {
+          "step": {
+            "name": "batch"
+          },
+          "tres": {
+            "requested": {
+              "max": [
+                {
+                  "type": "mem",
+                  "name": "",
+                  "id": 2,
+                  "count": 1073741824
+                }
+              ]
+            }
+          }
+        }
+      ],
       "comment": {
         "administrator": "",
         "job": "",
         "system": ""
+      },
+      "time": {
+        "elapsed": 600,
+        "limit": {
+          "set": true,
+          "infinite": false,
+          "number": 60
+        },
+        "total": {
+          "seconds": 300,
+          "microseconds": 0
+        }
+      },
+      "tres": {
+        "allocated": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 2
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ],
+        "requested": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 2
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ]
+      },
+      "required": {
+        "CPUs": 2,
+        "memory_per_cpu": {
+          "set": true,
+          "infinite": false,
+          "number": 2048
+        },
+        "memory_per_node": {
+          "set": false,
+          "infinite": false,
+          "number": 0
+        }
       }
     },
     {
@@ -156,6 +283,73 @@
         "administrator": "",
         "job": "",
         "system": ""
+      },
+      "time": {
+        "elapsed": 3600,
+        "limit": {
+          "set": true,
+          "infinite": false,
+          "number": 60
+        },
+        "total": {
+          "seconds": 0,
+          "microseconds": 0
+        }
+      },
+      "tres": {
+        "allocated": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 1
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 1024
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ],
+        "requested": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 1
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 1024
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ]
+      },
+      "required": {
+        "CPUs": 1,
+        "memory_per_cpu": {
+          "set": false,
+          "infinite": false,
+          "number": 0
+        },
+        "memory_per_node": {
+          "set": true,
+          "infinite": false,
+          "number": 1024
+        }
       }
     },
     {
@@ -386,7 +580,92 @@
         "job": "tminus:exp=arrays",
         "system": ""
       },
-      "steps": []
+      "steps": [
+        {
+          "step": {
+            "name": "batch"
+          },
+          "tres": {
+            "requested": {
+              "max": [
+                {
+                  "type": "mem",
+                  "name": "",
+                  "id": 2,
+                  "count": 536870912
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "time": {
+        "elapsed": 100,
+        "limit": {
+          "set": true,
+          "infinite": false,
+          "number": 10
+        },
+        "total": {
+          "seconds": 50,
+          "microseconds": 0
+        }
+      },
+      "tres": {
+        "allocated": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 1
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 1024
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ],
+        "requested": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 1
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 1024
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ]
+      },
+      "required": {
+        "CPUs": 1,
+        "memory_per_cpu": {
+          "set": false,
+          "infinite": false,
+          "number": 0
+        },
+        "memory_per_node": {
+          "set": true,
+          "infinite": false,
+          "number": 1024
+        }
+      }
     },
     {
       "account": "lab",
@@ -432,7 +711,92 @@
         "job": "tminus:exp=arrays",
         "system": ""
       },
-      "steps": []
+      "steps": [
+        {
+          "step": {
+            "name": "batch"
+          },
+          "tres": {
+            "requested": {
+              "max": [
+                {
+                  "type": "mem",
+                  "name": "",
+                  "id": 2,
+                  "count": 536870912
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "time": {
+        "elapsed": 100,
+        "limit": {
+          "set": true,
+          "infinite": false,
+          "number": 10
+        },
+        "total": {
+          "seconds": 50,
+          "microseconds": 0
+        }
+      },
+      "tres": {
+        "allocated": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 1
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 1024
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ],
+        "requested": [
+          {
+            "type": "cpu",
+            "name": "",
+            "id": 1,
+            "count": 1
+          },
+          {
+            "type": "mem",
+            "name": "",
+            "id": 2,
+            "count": 1024
+          },
+          {
+            "type": "node",
+            "name": "",
+            "id": 4,
+            "count": 1
+          }
+        ]
+      },
+      "required": {
+        "CPUs": 1,
+        "memory_per_cpu": {
+          "set": false,
+          "infinite": false,
+          "number": 0
+        },
+        "memory_per_node": {
+          "set": true,
+          "infinite": false,
+          "number": 1024
+        }
+      }
     }
   ]
 }

@@ -4,9 +4,10 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
 
 from ..errors import SlurmCommandError, SubmitError
-from ..parse import parse_sacct, parse_squeue
+from ..parse import parse_sacct, parse_sacct_usage, parse_squeue
+from ..report import JobUsage
 from ..spec import JobSpec, tags_to_comment
-from ..state import JobStatus
+from ..state import JobStatus, task_number
 from .base import Backend
 from .runner import Runner, SubprocessRunner
 
@@ -106,7 +107,19 @@ class SlurmCliBackend(Backend):
                     result[job_id] = found[-1]
         return result
 
-    def _query(self, program, job_ids, parse) -> List[JobStatus]:
+    def usage(self, job_ids: Sequence[str]) -> List[JobUsage]:
+        """Accounting figures from one ``sacct --json`` call."""
+        wanted = list(dict.fromkeys(job_ids))
+        if not wanted:
+            return []
+        found = self._query("sacct", wanted, parse_sacct_usage)
+        ordered: List[JobUsage] = []
+        for job_id in wanted:
+            ordered.extend(u for u in found if u.job_id == job_id)
+            ordered.extend(sorted(_tasks_of(job_id, found).values(), key=lambda u: task_number(u.job_id)))
+        return ordered
+
+    def _query(self, program, job_ids, parse) -> list:
         result = self._runner.run([program, "--json", "--jobs=" + ",".join(job_ids)])
         if result.returncode != 0:
             # squeue rejects ids slurmctld has already forgotten; sacct still has them.
@@ -143,8 +156,8 @@ class SlurmCliBackend(Backend):
             raise SlurmCommandError(result.args, result.returncode, result.stderr)
 
 
-def _tasks_of(array_id: str, statuses: List[JobStatus]) -> Dict[str, JobStatus]:
-    """The task statuses belonging to ``array_id`` (none if it is a task id itself)."""
+def _tasks_of(array_id: str, statuses: list) -> dict:
+    """The entries (statuses or usages) belonging to ``array_id``'s tasks (none for a task id)."""
     if "_" in array_id:
         return {}
     prefix = array_id + "_"
