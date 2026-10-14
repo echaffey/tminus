@@ -241,10 +241,10 @@ class StatusCommandTest(unittest.TestCase):
         self.assertIsNone(released.reason)
 
     def test_prune_previews_by_default_and_acts_with_yes(self):
-        store = tminus.Store()
+        store = tminus.Store(os.environ["TMINUS_DB"])
         store.delete("fake", [self.pending, self.failed])
         old = tminus.submit(tminus.JobSpec(command="true"), backend=self.backend,
-                            store=tminus.Store(clock=lambda: 0.0)).job_id  # submitted in 1970
+                            store=tminus.Store(os.environ["TMINUS_DB"], clock=lambda: 0.0)).job_id  # in 1970
         self.backend.set_state(old, JobState.COMPLETED)
 
         preview_status, preview, _ = run_cli("prune", "--older-than", "30d")

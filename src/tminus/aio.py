@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable, Dict,
 from .errors import JobNotFound, UnsatisfiableDependency, WaitTimeout
 from .monitor import PollPolicy, never_starting, next_delay, poll_once
 from .state import JobStatus
-from .store import Store
+from .store import Store, default_store
 
 if TYPE_CHECKING:
     from .job import Job
@@ -42,7 +42,7 @@ async def wait_all(
     if policy is None:
         policy = PollPolicy()
     if store is None:
-        store = Store()
+        store = default_store()
     unique = list({job.job_id: job for job in jobs}.values())
     waiter = _Waiter(unique, None if timeout is None else clock() + timeout, timeout)
     _coordinator(store, policy, sleep, clock).add(waiter)
@@ -86,12 +86,12 @@ class _Waiter:
         self.future: asyncio.Future = asyncio.get_event_loop().create_future()
 
 
-_CoordinatorKey = Tuple[int, str, PollPolicy, AsyncSleep, Callable[[], float]]
+_CoordinatorKey = Tuple[int, Optional[str], PollPolicy, AsyncSleep, Callable[[], float]]
 _COORDINATORS: Dict[_CoordinatorKey, "_Coordinator"] = {}
 
 
-def _coordinator(store: Store, policy: PollPolicy, sleep: AsyncSleep, clock: Callable[[], float]) -> "_Coordinator":
-    key = (id(asyncio.get_event_loop()), store.path, policy, sleep, clock)
+def _coordinator(store: Optional[Store], policy: PollPolicy, sleep: AsyncSleep, clock: Callable[[], float]) -> "_Coordinator":
+    key = (id(asyncio.get_event_loop()), store.path if store is not None else None, policy, sleep, clock)
     if key not in _COORDINATORS:
         _COORDINATORS[key] = _Coordinator(key, store, policy, sleep, clock)
     return _COORDINATORS[key]
@@ -100,7 +100,7 @@ def _coordinator(store: Store, policy: PollPolicy, sleep: AsyncSleep, clock: Cal
 class _Coordinator:
     """Polls on behalf of every waiter registered with it, until none are left."""
 
-    def __init__(self, key, store: Store, policy: PollPolicy, sleep: AsyncSleep, clock: Callable[[], float]) -> None:
+    def __init__(self, key, store: Optional[Store], policy: PollPolicy, sleep: AsyncSleep, clock: Callable[[], float]) -> None:
         self._key = key
         self._store = store
         self._policy = policy

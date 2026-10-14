@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Callable, Dict, Iterable, Iterator, List, Opti
 
 from .errors import JobNotFound, UnsatisfiableDependency, WaitTimeout
 from .state import JobStatus
-from .store import Store
+from .store import Store, default_store
 
 if TYPE_CHECKING:
     from .job import Job
@@ -49,8 +49,8 @@ def wait_all(
     """Block until every job in ``jobs`` is terminal; return each job's final status.
 
     Each poll asks every backend about all of its outstanding jobs in one
-    query. Each job's ``status`` is updated as polls come in, and every state
-    change seen is appended to the job's history in the Store. If ``timeout``
+    query. Each job's ``status`` is updated as polls come in, and, when the job
+    record is on, every state change seen is appended to the job's history. If ``timeout``
     seconds pass first, raises WaitTimeout carrying the latest statuses; the
     jobs themselves are left running. Raises JobNotFound if the scheduler has
     no record of a job. ``sleep`` and ``clock`` exist so tests and simulations
@@ -59,7 +59,7 @@ def wait_all(
     if policy is None:
         policy = PollPolicy()
     if store is None:
-        store = Store()
+        store = default_store()
     deadline = None if timeout is None else clock() + timeout
     intervals = policy.intervals()
     latest: Dict[str, JobStatus] = {}
@@ -78,10 +78,10 @@ def wait_all(
         sleep(delay)
 
 
-def poll_once(jobs: Sequence[Job], store: Store) -> Dict[str, JobStatus]:
+def poll_once(jobs: Sequence[Job], store: Optional[Store]) -> Dict[str, JobStatus]:
     """Query the current status of ``jobs``, one query per backend.
 
-    Updates each job's ``status``, records state changes in ``store``, and
+    Updates each job's ``status``, records state changes in ``store`` if given, and
     raises JobNotFound if a backend has no record of one of them.
     """
     latest: Dict[str, JobStatus] = {}
@@ -92,7 +92,8 @@ def poll_once(jobs: Sequence[Job], store: Store) -> Dict[str, JobStatus]:
             if job.job_id not in found:
                 raise JobNotFound(job.job_id)
             job.status = latest[job.job_id] = found[job.job_id]
-        store.record_statuses(backend.name, [found[job.job_id] for job in group])
+        if store is not None:
+            store.record_statuses(backend.name, [found[job.job_id] for job in group])
     return latest
 
 

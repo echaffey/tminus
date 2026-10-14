@@ -1,7 +1,10 @@
-"""Store: the local SQLite record of every job tminus has submitted.
+"""Store: an optional local SQLite record of the jobs tminus submits.
 
-The database lives at ``TMINUS_DB`` or, by default, under
-``$XDG_DATA_HOME/tminus`` (``~/.local/share/tminus``). Home directories on
+The record is off unless ``TMINUS_DB`` names a database file (or a Store is
+passed in explicitly). With it on, jobs can be found again by tag from later
+runs, and tminus keeps each job's state history and the changes it made.
+Without it, tminus works purely from job ids and the Job objects a script
+holds, and writes nothing to disk. Home directories on
 HPC systems are often NFS, so the Store keeps SQLite's default rollback
 journal (WAL mode does not work on network filesystems) and holds each
 connection only for one short transaction. If locking on NFS still causes
@@ -17,6 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
+from .errors import StoreNotEnabled
 from .spec import JobSpec
 from .state import JobState, JobStatus
 
@@ -92,19 +96,32 @@ class HistoryEntry:
     exit_code: Optional[int]
 
 
-def default_path() -> str:
-    """Where the Store lives unless told otherwise."""
-    if os.environ.get("TMINUS_DB"):
-        return os.environ["TMINUS_DB"]
+def data_dir() -> str:
+    """tminus's per-user data directory: ``$XDG_DATA_HOME/tminus`` (``~/.local/share/tminus``)."""
     data_home = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
-    return os.path.join(data_home, "tminus", "jobs.db")
+    return os.path.join(data_home, "tminus")
+
+
+def default_store() -> Optional["Store"]:
+    """The Store named by ``TMINUS_DB``, or None when the record is turned off."""
+    path = os.environ.get("TMINUS_DB")
+    return Store(path) if path else None
+
+
+def require_store(store: Optional["Store"], what: str) -> "Store":
+    """``store``, else the default one; raises StoreNotEnabled if neither exists."""
+    if store is None:
+        store = default_store()
+    if store is None:
+        raise StoreNotEnabled(what)
+    return store
 
 
 class Store:
     """Records submitted jobs and their tags, shared by every process using the same file."""
 
-    def __init__(self, path: Optional[str] = None, clock: Callable[[], float] = time.time) -> None:
-        self.path = path if path is not None else default_path()
+    def __init__(self, path: str, clock: Callable[[], float] = time.time) -> None:
+        self.path = path
         self._clock = clock
         self._migrated = False
 

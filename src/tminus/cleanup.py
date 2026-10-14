@@ -7,14 +7,14 @@ import os
 import re
 import shutil
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from .backend import get_backend
 from .backend.base import Backend
 from .errors import InvalidAgeError, TminusError
 from .job import Job
 from .state import JobState
-from .store import Store
+from .store import Store, default_store, require_store
 
 _AGE = re.compile(r"^(\d+(?:\.\d+)?)([smhdw])$")
 _UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
@@ -42,12 +42,12 @@ def prune(
     a terminal state for it, or if the scheduler (asked in one batched query)
     reports it terminal or no longer knows it at all. Active jobs are never
     removed. Each removed job's tags, history, and events go with it. Returns
-    the ids removed, or that would be with ``dry_run``.
+    the ids removed, or that would be with ``dry_run``. Needs the job record
+    (``store`` or ``TMINUS_DB``).
     """
+    store = require_store(store, "pruning")
     if backend is None:
         backend = get_backend()
-    if store is None:
-        store = Store()
     age = parse_age(older_than) if isinstance(older_than, str) else float(older_than)
     candidates = store.submitted_before(backend.name, store.now() - age, tags)
     unsure = [job_id for job_id, last_state in candidates if last_state is None or not last_state.is_terminal]
@@ -86,33 +86,39 @@ class PurgeResult:
 
 
 def cancel(
-    tags: Dict[str, str],
+    tags: Optional[Dict[str, str]] = None,
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,
     dry_run: bool = False,
+    jobs: Optional[Sequence[Job]] = None,
 ) -> List[str]:
-    """Cancel every still-active tracked job carrying all of ``tags``, in one scheduler call.
+    """Cancel every still-active job in ``jobs``, or every tracked job carrying all of
+    ``tags``, in one scheduler call.
 
-    Returns the ids cancelled, or that would be with ``dry_run``.
+    Returns the ids cancelled, or that would be with ``dry_run``. Selecting by
+    tags needs the job record (``store`` or ``TMINUS_DB``).
     """
-    backend, store, tracked = _tracked(tags, backend, store)
+    backend, store, tracked = _selected(tags, jobs, backend, store)
     statuses = backend.status([job.job_id for job in tracked]) if tracked else {}
     active = [job.job_id for job in tracked if job.job_id in statuses and not statuses[job.job_id].state.is_terminal]
     if active and not dry_run:
         backend.cancel(active)
-        for job_id in active:
-            store.record_event(backend.name, job_id, "cancel")
+        if store is not None:
+            for job_id in active:
+                store.record_event(backend.name, job_id, "cancel")
     return active
 
 
 def purge(
-    tags: Dict[str, str],
+    tags: Optional[Dict[str, str]] = None,
     policy: Union[Policy, str] = Policy.ON_SUCCESS,
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,
     dry_run: bool = False,
+    jobs: Optional[Sequence[Job]] = None,
 ) -> List[PurgeResult]:
-    """Delete the log files and ``scratch_paths`` of finished jobs carrying all of ``tags``.
+    """Delete the log files and ``scratch_paths`` of finished jobs: those in ``jobs``, or
+    every tracked job carrying all of ``tags`` (which needs the job record).
 
     ``policy`` picks which finished jobs qualify. Active jobs are never touched,
     and only paths derived from what the Store recorded for each job are
@@ -123,7 +129,7 @@ def purge(
     as finished in an unknown state, so only ``Policy.ALWAYS`` purges it.
     """
     policy = Policy(policy)
-    backend, store, tracked = _tracked(tags, backend, store)
+    backend, store, tracked = _selected(tags, jobs, backend, store)
     if policy is Policy.NEVER or not tracked:
         return []
     statuses = backend.status([job.job_id for job in tracked])
@@ -144,21 +150,30 @@ def purge(
                 result.deleted.append(path)
                 if not dry_run:
                     _remove(path)
-        if not dry_run:
+        if not dry_run and store is not None:
             store.record_event(backend.name, job.job_id, "purge", " ".join(result.deleted) or None)
         results.append(result)
     return results
 
 
-def _tracked(
-    tags: Dict[str, str], backend: Optional[Backend], store: Optional[Store]
-) -> Tuple[Backend, Store, List[Job]]:
+def _selected(
+    tags: Optional[Dict[str, str]],
+    jobs: Optional[Sequence[Job]],
+    backend: Optional[Backend],
+    store: Optional[Store],
+) -> Tuple[Backend, Optional[Store], List[Job]]:
+    """The jobs to act on: ``jobs`` as given, or the tracked jobs carrying ``tags``."""
+    if jobs is not None:
+        if backend is None:
+            backend = jobs[0].backend if jobs else get_backend()
+        if store is None:
+            store = default_store()
+        return backend, store, list(jobs)
     if not tags:
-        raise TminusError("cleanup needs at least one tag to select jobs; there is no 'everything' default")
+        raise TminusError("cleanup needs jobs or at least one tag to select them; there is no 'everything' default")
+    store = require_store(store, "selecting jobs by tag")
     if backend is None:
         backend = get_backend()
-    if store is None:
-        store = Store()
     tracked = [
         Job(job_id=t.job_id, spec=t.spec, backend=backend, submit_dir=t.submit_dir)
         for t in store.find(backend.name, tags)

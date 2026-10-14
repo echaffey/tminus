@@ -9,7 +9,7 @@ from .errors import InvalidUpdateError, JobNotFound
 from .monitor import wait_all
 from .spec import JobSpec
 from .state import JobStatus
-from .store import Store
+from .store import Store, default_store
 
 @dataclass
 class Job:
@@ -100,4 +100,7 @@ class Job:
         self._record("update", store, detail)
 
     def _record(self, action: str, store: Optional[Store], detail: Optional[str] = None) -> None:
-        (store if store is not None else Store()).record_event(self.backend.name, self.job_id, action, detail)
+        if store is None:
+            store = default_store()
+        if store is not None:
+            store.record_event(self.backend.name, self.job_id, action, detail)

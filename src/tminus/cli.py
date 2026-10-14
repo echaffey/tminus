@@ -78,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     status_cmd = commands.add_parser("status", help="show the current state of jobs")
     status_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
-    _add_tag_option(status_cmd, "include every tracked job with this tag (repeatable; all must match)")
+    _add_tag_option(status_cmd, "include every tracked job with this tag (repeatable; all must match; needs TMINUS_DB)")
     status_cmd.set_defaults(handler=_status)
 
     wait_cmd = commands.add_parser(
@@ -88,7 +88,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "every job completed, 1 if any did not, and 124 if the timeout expired first.",
     )
     wait_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
-    _add_tag_option(wait_cmd, "include every tracked job with this tag (repeatable; all must match)")
+    _add_tag_option(wait_cmd, "include every tracked job with this tag (repeatable; all must match; needs TMINUS_DB)")
     wait_cmd.add_argument("--timeout", type=float, metavar="SECONDS", help="give up after this long")
     wait_cmd.set_defaults(handler=_wait)
 
@@ -99,7 +99,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "Selecting by --tag is a dry run unless --yes is given.",
     )
     cancel_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
-    _add_tag_option(cancel_cmd, "cancel every active tracked job with this tag (repeatable; all must match)")
+    _add_tag_option(cancel_cmd, "cancel every active tracked job with this tag (repeatable; all must match; needs TMINUS_DB)")
     cancel_cmd.add_argument("--yes", action="store_true", help="actually cancel the jobs selected by --tag")
     cancel_cmd.set_defaults(handler=_cancel)
 
@@ -111,7 +111,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "unless --yes is given.",
     )
     clean_cmd.add_argument("--tag", dest="tags", type=_tag, action="append", required=True,
-                           metavar="KEY=VALUE", help="select jobs with this tag (repeatable; all must match)")
+                           metavar="KEY=VALUE", help="select jobs with this tag (repeatable; all must match; needs TMINUS_DB)")
     clean_cmd.add_argument("--policy", choices=[p.value for p in Policy], default=Policy.ON_SUCCESS.value,
                            help="which finished jobs to clean up (default: on_success)")
     clean_cmd.add_argument("--yes", action="store_true", help="actually delete the files")
@@ -143,7 +143,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "efficiency from Slurm accounting, with a summary. Array jobs are reported per task.",
     )
     report_cmd.add_argument("job_ids", nargs="*", metavar="JOBID")
-    _add_tag_option(report_cmd, "include every tracked job with this tag (repeatable; all must match)")
+    _add_tag_option(report_cmd, "include every tracked job with this tag (repeatable; all must match; needs TMINUS_DB)")
     report_cmd.add_argument("--format", choices=("table", "csv", "json"), default="table")
     report_cmd.set_defaults(handler=_report)
 
@@ -151,11 +151,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "prune",
         help="forget old finished jobs (dry run unless --yes)",
         description="Remove tracking records of finished jobs submitted more than --older-than ago. "
-        "Active jobs are never removed. Lists what would be removed unless --yes is given.",
+        "Active jobs are never removed. Lists what would be removed unless --yes is given. "
+        "Needs the job record: set TMINUS_DB.",
     )
     prune_cmd.add_argument("--older-than", dest="older_than", type=_age, required=True, metavar="AGE",
                            help="e.g. 30d, 12h, 2w")
-    _add_tag_option(prune_cmd, "only consider jobs with this tag (repeatable; all must match)")
+    _add_tag_option(prune_cmd, "only consider jobs with this tag (repeatable; all must match; needs TMINUS_DB)")
     prune_cmd.add_argument("--yes", action="store_true", help="actually remove the records")
     prune_cmd.set_defaults(handler=_prune)
     return parser

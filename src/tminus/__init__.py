@@ -14,6 +14,7 @@ from .errors import (
     JobNotFound,
     SlurmCommandError,
     SlurmOutputError,
+    StoreNotEnabled,
     SubmitError,
     TminusError,
     UnsatisfiableDependency,
@@ -27,7 +28,7 @@ from .monitor import PollPolicy, wait_all
 from .report import JobUsage, Report
 from .spec import DependencyType, JobSpec
 from .state import JobState, JobStatus
-from .store import Store
+from .store import Store, default_store, require_store
 
 __version__ = "0.1.0"
 
@@ -50,6 +51,7 @@ __all__ = [
     "SlurmCommandError",
     "SlurmOutputError",
     "Store",
+    "StoreNotEnabled",
     "SubmitError",
     "TminusError",
     "UnsatisfiableDependency",
@@ -67,19 +69,20 @@ __all__ = [
 
 
 def submit(spec: JobSpec, backend: Optional[Backend] = None, store: Optional[Store] = None) -> Job:
-    """Submit ``spec``, record it in the Store, and return a handle on the new job.
+    """Submit ``spec`` and return a handle on the new job.
 
     Without an explicit ``backend``, uses the one ``TMINUS_BACKEND`` selects
-    (real Slurm by default); without an explicit ``store``, the default one
-    (``TMINUS_DB``).
+    (real Slurm by default). The job is recorded in ``store``, or in the Store
+    ``TMINUS_DB`` names; with neither, nothing is recorded.
     """
     if backend is None:
         backend = get_backend()
     if store is None:
-        store = Store()
+        store = default_store()
     submit_dir = os.getcwd()
     job_id = backend.submit(spec)
-    store.record_submission(backend.name, job_id, spec, submit_dir)
+    if store is not None:
+        store.record_submission(backend.name, job_id, spec, submit_dir)
     return Job(job_id=job_id, spec=spec, backend=backend, submit_dir=submit_dir)
 
 
@@ -88,11 +91,13 @@ def jobs(
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,
 ) -> List[Job]:
-    """Every tracked job on ``backend`` that carries all of ``tags``, oldest first."""
+    """Every tracked job on ``backend`` that carries all of ``tags``, oldest first.
+
+    Needs the job record (``store`` or ``TMINUS_DB``); raises StoreNotEnabled without it.
+    """
+    store = require_store(store, "finding jobs by tag")
     if backend is None:
         backend = get_backend()
-    if store is None:
-        store = Store()
     return [
         Job(job_id=tracked.job_id, spec=tracked.spec, backend=backend, submit_dir=tracked.submit_dir)
         for tracked in store.find(backend.name, tags)
@@ -118,12 +123,12 @@ def report(
     """A Report on ``jobs``, or else on every tracked job carrying all of ``tags``.
 
     Figures come from one accounting query. Array jobs are reported task by task.
+    Selecting by tags needs the job record (``store`` or ``TMINUS_DB``).
     """
     if backend is None:
-        backend = get_backend()
-    if store is None:
-        store = Store()
+        backend = jobs[0].backend if jobs else get_backend()
     if jobs is None:
+        store = require_store(store, "reporting on jobs by tag")
         job_ids = [tracked.job_id for tracked in store.find(backend.name, tags)]
     else:
         job_ids = [job.job_id for job in jobs]

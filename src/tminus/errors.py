@@ -91,3 +91,14 @@ class UnsatisfiableDependency(TminusError):
 
 class InvalidAgeError(TminusError):
     """An age such as ``30d`` could not be understood."""
+
+
+class StoreNotEnabled(TminusError):
+    """An operation needs tminus's record of submitted jobs, which is turned off."""
+
+    def __init__(self, what: str = "this") -> None:
+        super().__init__(
+            f"{what} needs tminus's record of submitted jobs, which is off. Turn it on by setting "
+            "TMINUS_DB to a file path (for example ~/.local/share/tminus/jobs.db) before submitting, "
+            "or pass store=Store(path) in Python."
+        )

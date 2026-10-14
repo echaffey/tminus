@@ -5,17 +5,19 @@ import os
 from typing import Callable, Dict, Optional
 
 from ..errors import TminusError
-from ..store import default_path
+from ..store import data_dir
 from .base import Backend
 from .fake import FakeBackend
 from .slurm_cli import SlurmCliBackend
 
 
 def fake_state_path() -> str:
-    """Where the shared fake scheduler keeps its state: ``TMINUS_FAKE_STATE``, else beside the Store."""
+    """Where the shared fake scheduler keeps its state: ``TMINUS_FAKE_STATE``, else beside the
+    Store if one is configured, else in tminus's data directory."""
     if os.environ.get("TMINUS_FAKE_STATE"):
         return os.environ["TMINUS_FAKE_STATE"]
-    return os.path.join(os.path.dirname(os.path.abspath(default_path())), "fake-scheduler.json")
+    directory = os.path.dirname(os.path.abspath(os.environ["TMINUS_DB"])) if os.environ.get("TMINUS_DB") else data_dir()
+    return os.path.join(directory, "fake-scheduler.json")
 
 
 BACKENDS: Dict[str, Callable[[], Backend]] = {
