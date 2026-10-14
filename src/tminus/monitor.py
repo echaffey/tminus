@@ -1,9 +1,13 @@
-"""Waiting for jobs: batched polling with backoff."""
+"""Waiting for jobs: batched polling with backoff.
+
+``poll_once`` and ``next_delay`` hold the polling rules; ``wait_all`` here and
+the coroutines in ``tminus.aio`` are two drivers around them.
+"""
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Iterator, List, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Dict, Iterable, Iterator, List, Optional, Sequence
 
 from .errors import JobNotFound, WaitTimeout
 from .state import JobStatus
@@ -61,24 +65,49 @@ def wait_all(
     latest: Dict[str, JobStatus] = {}
     outstanding = list({job.job_id: job for job in jobs}.values())
     while True:
-        for group in _by_backend(outstanding):
-            backend = group[0].backend
-            found = backend.status([job.job_id for job in group])
-            for job in group:
-                if job.job_id not in found:
-                    raise JobNotFound(job.job_id)
-                job.status = latest[job.job_id] = found[job.job_id]
-            store.record_statuses(backend.name, [found[job.job_id] for job in group])
+        latest.update(poll_once(outstanding, store))
         outstanding = [job for job in outstanding if not latest[job.job_id].state.is_terminal]
         if not outstanding:
             return {job.job_id: latest[job.job_id] for job in jobs}
-        interval = next(intervals)
-        if deadline is not None:
-            remaining = deadline - clock()
-            if remaining <= 0:
-                raise WaitTimeout(dict(latest), timeout)
-            interval = min(interval, remaining)
-        sleep(interval)
+        delay = next_delay(intervals, [deadline] if deadline is not None else [], clock)
+        if delay is None:
+            raise WaitTimeout(dict(latest), timeout)
+        sleep(delay)
+
+
+def poll_once(jobs: Sequence[Job], store: Store) -> Dict[str, JobStatus]:
+    """Query the current status of ``jobs``, one query per backend.
+
+    Updates each job's ``status``, records state changes in ``store``, and
+    raises JobNotFound if a backend has no record of one of them.
+    """
+    latest: Dict[str, JobStatus] = {}
+    for group in _by_backend(jobs):
+        backend = group[0].backend
+        found = backend.status([job.job_id for job in group])
+        for job in group:
+            if job.job_id not in found:
+                raise JobNotFound(job.job_id)
+            job.status = latest[job.job_id] = found[job.job_id]
+        store.record_statuses(backend.name, [found[job.job_id] for job in group])
+    return latest
+
+
+def next_delay(
+    intervals: Iterator[float], deadlines: Iterable[float], clock: Callable[[], float]
+) -> Optional[float]:
+    """How long to sleep before the next poll: the next backoff interval,
+    shortened so the earliest deadline is not overshot. None once a deadline
+    has already passed.
+    """
+    delay = next(intervals)
+    now = clock()
+    for deadline in deadlines:
+        remaining = deadline - now
+        if remaining <= 0:
+            return None
+        delay = min(delay, remaining)
+    return delay
 
 
 def _by_backend(jobs: Sequence[Job]) -> List[List[Job]]:

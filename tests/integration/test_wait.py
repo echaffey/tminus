@@ -7,47 +7,9 @@ import unittest
 
 import tminus
 from tminus import JobState, PollPolicy
-from tminus.backend.fake import FakeBackend
 from tminus.store import Store
 
-
-class CountingFake(FakeBackend):
-    """A FakeBackend that counts how many status queries it receives."""
-
-    def __init__(self):
-        super().__init__()
-        self.status_calls = []
-
-    def status(self, job_ids):
-        self.status_calls.append(list(job_ids))
-        return super().status(job_ids)
-
-
-class Timeline:
-    """A fake clock whose sleep() moves jobs through scripted states.
-
-    ``at(n, job, state)`` makes ``job`` reach ``state`` during the n-th sleep,
-    so the poll after that sleep sees it.
-    """
-
-    def __init__(self, backend):
-        self.backend = backend
-        self.now = 0.0
-        self.sleeps = []
-        self._events = {}
-
-    def at(self, sleep_number, job, state, exit_code=None):
-        self._events.setdefault(sleep_number, []).append((job.job_id, state, exit_code))
-        return self
-
-    def clock(self):
-        return self.now
-
-    def sleep(self, seconds):
-        self.sleeps.append(seconds)
-        self.now += seconds
-        for job_id, state, exit_code in self._events.get(len(self.sleeps), []):
-            self.backend.set_state(job_id, state, exit_code=exit_code)
+from tests.helpers import CountingFake, Timeline
 
 
 class WaitTest(unittest.TestCase):

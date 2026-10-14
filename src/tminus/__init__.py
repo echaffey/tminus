@@ -16,6 +16,7 @@ from .errors import (
     WaitTimeout,
 )
 from .job import Job
+from . import aio
 from .monitor import PollPolicy, wait_all
 from .spec import JobSpec
 from .state import JobState, JobStatus
@@ -39,6 +40,7 @@ __all__ = [
     "SubmitError",
     "TminusError",
     "WaitTimeout",
+    "aio",
     "get_backend",
     "jobs",
     "status",
