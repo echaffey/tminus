@@ -30,3 +30,8 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local planning and agent docs (kept on disk, not in the repo)
+.scratch/
+docs/
+/*.md
