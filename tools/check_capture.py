@@ -95,7 +95,7 @@ def main(directory):
     queued = statuses_for(single, parsed("squeue_single.json", parse_squeue))
     check("squeue single (pending or running, tag exp=capture)",
           queued is not None and queued.state in (JobState.PENDING, JobState.RUNNING)
-          and queued.tags == {"exp": "capture"}, describe(queued))
+          and queued.tags == ["exp=capture"], describe(queued))
 
     queued_array = statuses_for(array, parsed("squeue_array.json", parse_squeue))
     check("squeue array (some of tasks 0-3 listed)",

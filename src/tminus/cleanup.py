@@ -13,6 +13,7 @@ from .backend import get_backend
 from .backend.base import Backend
 from .errors import InvalidAgeError, TminusError
 from .job import Job
+from .spec import Tags
 from .state import JobState
 from .store import Store, default_store, require_store
 
@@ -30,7 +31,7 @@ def parse_age(text: str) -> float:
 
 def prune(
     older_than: Union[str, float],
-    tags: Optional[Dict[str, str]] = None,
+    tags: Tags = None,
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,
     dry_run: bool = False,
@@ -86,7 +87,7 @@ class PurgeResult:
 
 
 def cancel(
-    tags: Optional[Dict[str, str]] = None,
+    tags: Tags = None,
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,
     dry_run: bool = False,
@@ -110,7 +111,7 @@ def cancel(
 
 
 def purge(
-    tags: Optional[Dict[str, str]] = None,
+    tags: Tags = None,
     policy: Union[Policy, str] = Policy.ON_SUCCESS,
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,
@@ -157,7 +158,7 @@ def purge(
 
 
 def _selected(
-    tags: Optional[Dict[str, str]],
+    tags: Tags,
     jobs: Optional[Sequence[Job]],
     backend: Optional[Backend],
     store: Optional[Store],

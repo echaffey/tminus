@@ -35,7 +35,7 @@ class WithoutAStoreTest(unittest.TestCase):
         return [os.path.join(d, f) for d, _, files in os.walk(self.home) for f in files]
 
     def test_submitting_waiting_and_modifying_write_nothing(self):
-        job = self.submit(tags={"exp": "x"})
+        job = self.submit(tags=["x"])
         job.hold()
         job.update(time_limit="01:00:00")
         job.release()
@@ -66,9 +66,9 @@ class WithoutAStoreTest(unittest.TestCase):
         self.assertFalse(os.path.exists(log))
 
     def test_looking_jobs_up_by_tag_explains_how_to_turn_the_record_on(self):
-        for lookup in (lambda: tminus.jobs(tags={"exp": "x"}, backend=self.backend),
-                       lambda: tminus.report(tags={"exp": "x"}, backend=self.backend),
-                       lambda: tminus.cleanup.cancel({"exp": "x"}, backend=self.backend),
+        for lookup in (lambda: tminus.jobs(tags=["x"], backend=self.backend),
+                       lambda: tminus.report(tags=["x"], backend=self.backend),
+                       lambda: tminus.cleanup.cancel(["x"], backend=self.backend),
                        lambda: tminus.prune("30d", backend=self.backend)):
             with self.assertRaises(tminus.StoreNotEnabled) as caught:
                 lookup()
@@ -81,10 +81,10 @@ class WithoutAStoreTest(unittest.TestCase):
     def test_the_cli_works_by_job_id_and_explains_tag_lookups(self):
         with mock.patch.dict(BACKENDS, {"fake": lambda: self.backend}), \
                 mock.patch.dict(os.environ, {"TMINUS_BACKEND": "fake"}):
-            submit_status, out, _ = run_cli("submit", "--tag", "exp=x", "--wrap", "true",
+            submit_status, out, _ = run_cli("submit", "--tag", "x", "--wrap", "true",
                                             env={"TMINUS_BACKEND": "fake"})
             status_status, status_out, _ = run_cli("status", out.strip(), env={"TMINUS_BACKEND": "fake"})
-            tag_status, _, tag_err = run_cli("status", "--tag", "exp=x", env={"TMINUS_BACKEND": "fake"})
+            tag_status, _, tag_err = run_cli("status", "--tag", "x", env={"TMINUS_BACKEND": "fake"})
 
         self.assertEqual(submit_status, 0)
         self.assertEqual(status_status, 0)
@@ -101,9 +101,9 @@ class WithAStoreTest(unittest.TestCase):
         db = os.path.join(directory, "jobs.db")
         backend = FakeBackend()
         with mock.patch.dict(os.environ, {"TMINUS_DB": db}):
-            job = tminus.submit(tminus.JobSpec(command="true", tags={"exp": "x"}), backend=backend)
+            job = tminus.submit(tminus.JobSpec(command="true", tags=["x"]), backend=backend)
 
-            found = tminus.jobs(tags={"exp": "x"}, backend=backend)
+            found = tminus.jobs(tags=["x"], backend=backend)
 
         self.assertTrue(os.path.exists(db))
         self.assertEqual([j.job_id for j in found], [job.job_id])

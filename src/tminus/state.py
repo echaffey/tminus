@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 class JobState(enum.Enum):
@@ -98,7 +98,7 @@ class JobStatus:
     state: JobState
     reason: Optional[str] = None
     exit_code: Optional[int] = None
-    tags: Dict[str, str] = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
     tasks: Dict[str, "JobStatus"] = field(default_factory=dict)
 
     @property
@@ -126,7 +126,7 @@ class JobStatus:
         """
         ordered = dict(sorted(tasks.items(), key=lambda item: task_number(item[0])))
         statuses = list(ordered.values())
-        tags = statuses[0].tags if statuses else {}
+        tags = statuses[0].tags if statuses else []
         if not statuses:
             return cls(job_id, JobState.UNKNOWN, tags=tags, tasks=ordered)
         unfinished = [s for s in statuses if not s.state.is_terminal]

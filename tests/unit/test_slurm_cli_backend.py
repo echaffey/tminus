@@ -78,9 +78,9 @@ class SbatchSubmitTest(unittest.TestCase):
     def test_tags_are_copied_into_the_job_comment(self):
         runner = RecordingRunner(stdout="7\n")
 
-        SlurmCliBackend(runner=runner).submit(JobSpec(command="true", tags={"run": "1", "exp": "exp42"}))
+        SlurmCliBackend(runner=runner).submit(JobSpec(command="true", tags=["sweep3", "train"]))
 
-        self.assertIn("--comment=tminus:exp=exp42,run=1", runner.calls[0])
+        self.assertIn("--comment=tminus:sweep3,train", runner.calls[0])
 
     def test_the_cluster_name_is_dropped_from_parsable_output(self):
         runner = RecordingRunner(stdout="4242;cluster-a\n")

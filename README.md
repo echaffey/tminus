@@ -2,7 +2,7 @@
 
 A Python library and command line for working with Slurm jobs from scripts on an HPC login node: submit them, wait for them, change them, clean up after them, and see how well they used what they asked for.
 
-By default tminus keeps nothing on disk: you work with job ids, or the `Job` objects your script holds. If you also want to come back later, from a new shell or another script, and say "wait for everything tagged `exp=sweep3`" or "delete the logs of the ones that succeeded", turn on its job record by setting `TMINUS_DB` (see [Finding jobs again later](#finding-jobs-again-later)).
+By default tminus keeps nothing on disk: you work with job ids, or the `Job` objects your script holds. If you also want to come back later, from a new shell or another script, and say "wait for everything tagged `sweep3`" or "delete the logs of the ones that succeeded", turn on its job record by setting `TMINUS_DB` (see [Finding jobs again later](#finding-jobs-again-later)).
 
 > **Status: early.** The test suite runs against recorded Slurm output and a built-in fake scheduler, but tminus has not yet been run against a live cluster. Expect rough edges, especially in parsing output from your site's Slurm version. Bug reports with the failing `squeue --json` or `sacct --json` output are very welcome.
 
@@ -32,13 +32,13 @@ pip install --user --no-index --no-build-isolation .
 ## From the command line
 
 ```bash
-# Submit, tagging the job so you can find it later
-tminus submit --tag exp=sweep3 --partition gpu --cpus 4 --mem 16G --time 02:00:00 \
+# Submit, tagging the job with a name so you can find it later
+tminus submit --tag sweep3 --partition gpu --cpus 4 --mem 16G --time 02:00:00 \
     --output logs/%j.out --wrap "python train.py"
 
 # An array job, and a job that only runs if the first one succeeds
-tminus submit --tag exp=sweep3 --array 0-9%4 job.sh
-tminus submit --tag exp=sweep3 --depends-on 123456 --wrap "python summarize.py"
+tminus submit --tag sweep3 --array 0-9%4 job.sh
+tminus submit --tag sweep3 --depends-on 123456 --wrap "python summarize.py"
 
 tminus status 123456 123457                 # one line per job; arrays show task counts
 tminus wait 123456 --timeout 3600           # exits 0 if all completed, 1 if any failed, 124 on timeout
@@ -46,14 +46,14 @@ tminus report 123456                        # CPU, memory, and time-limit effici
 tminus update 123456 --time-limit 04:00:00  # also: hold, release, requeue, cancel
 ```
 
-With the job record on (`TMINUS_DB` set before submitting), commands can select jobs by tag instead of id:
+A tag is any single word (letters, digits, and `_ . : / @ + - =`), and a job can have several (`--tag sweep3 --tag train`). With the job record on (`TMINUS_DB` set before submitting), commands can select jobs by tag instead of id; with several `--tag` options, only jobs carrying all of them match:
 
 ```bash
-tminus status --tag exp=sweep3
-tminus wait --tag exp=sweep3 --timeout 3600
-tminus report --tag exp=sweep3
-tminus cancel --tag exp=sweep3 --yes        # without --yes it only lists what it would do
-tminus clean --tag exp=sweep3 --policy on_success --yes   # delete logs of jobs that succeeded
+tminus status --tag sweep3
+tminus wait --tag sweep3 --timeout 3600
+tminus report --tag sweep3
+tminus cancel --tag sweep3 --yes        # without --yes it only lists what it would do
+tminus clean --tag sweep3 --policy on_success --yes   # delete logs of jobs that succeeded
 tminus prune --older-than 30d --yes         # forget old finished jobs
 ```
 
@@ -68,7 +68,7 @@ spec = tminus.JobSpec(
     command="python train.py",
     cpus=4, mem="16G", time="02:00:00", partition="gpu",
     output="logs/%j.out",
-    tags={"exp": "sweep3"},
+    tags=["sweep3"],
 )
 jobs = [tminus.submit(spec) for _ in range(3)]
 

@@ -79,7 +79,7 @@ class SlurmArrayStatusTest(unittest.TestCase):
                 })
                 self.assertEqual(status.tasks["2000_1"].exit_code, 2)
                 self.assertEqual(status.tasks["2000_3"].reason, "JobArrayTaskLimit")
-                self.assertEqual(status.tags, {"exp": "arrays"})
+                self.assertEqual(status.tags, ["arrays"])
 
     def test_a_finished_array_is_read_from_sacct(self):
         for version in FIXTURE_VERSIONS:

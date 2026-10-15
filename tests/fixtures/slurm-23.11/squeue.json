@@ -59,7 +59,7 @@
         "infinite": false,
         "number": 120
       },
-      "comment": "tminus:exp=exp42,run=1"
+      "comment": "tminus:exp42,run1"
     },
     {
       "account": "lab",
@@ -145,7 +145,7 @@
         "number": 2
       },
       "array_task_string": "",
-      "comment": "tminus:exp=arrays"
+      "comment": "tminus:arrays"
     },
     {
       "account": "lab",
@@ -186,7 +186,7 @@
         "number": 0
       },
       "array_task_string": "3%2",
-      "comment": "tminus:exp=arrays"
+      "comment": "tminus:arrays"
     }
   ]
 }

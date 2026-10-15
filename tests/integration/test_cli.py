@@ -63,10 +63,10 @@ class FakeBackendAcrossProcessesTest(unittest.TestCase):
         self.env = {"TMINUS_BACKEND": "fake", "TMINUS_DB": os.path.join(self.tmp, "jobs.db")}
 
     def test_separate_runs_get_distinct_ids_and_see_each_others_jobs(self):
-        _, first, _ = run_cli("submit", "--tag", "exp=exp42", "--wrap", "true", env=self.env)
-        _, second, _ = run_cli("submit", "--tag", "exp=exp42", "--wrap", "true", env=self.env)
+        _, first, _ = run_cli("submit", "--tag", "exp42", "--wrap", "true", env=self.env)
+        _, second, _ = run_cli("submit", "--tag", "exp42", "--wrap", "true", env=self.env)
 
-        status, out, err = run_cli("status", "--tag", "exp=exp42", env=self.env)
+        status, out, err = run_cli("status", "--tag", "exp42", env=self.env)
 
         self.assertNotEqual(first.strip(), second.strip())
         self.assertEqual(status, 0, err)
@@ -84,7 +84,7 @@ class CleanupCommandTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         store = tminus.Store(self.env["TMINUS_DB"])
-        spec = tminus.JobSpec(command="true", tags={"exp": "exp42"}, workdir=self.tmp, output="%j.out")
+        spec = tminus.JobSpec(command="true", tags=["exp42"], workdir=self.tmp, output="%j.out")
         self.running = tminus.submit(spec, backend=self.backend, store=store).job_id
         self.done = tminus.submit(spec, backend=self.backend, store=store).job_id
         self.backend.set_state(self.running, JobState.RUNNING)
@@ -93,9 +93,9 @@ class CleanupCommandTest(unittest.TestCase):
         open(self.log, "w").close()
 
     def test_cancel_by_tag_previews_and_needs_yes(self):
-        _, preview, _ = run_cli("cancel", "--tag", "exp=exp42", env=self.env)
+        _, preview, _ = run_cli("cancel", "--tag", "exp42", env=self.env)
         before = self.backend.status([self.running])[self.running].state
-        status, out, _ = run_cli("cancel", "--tag", "exp=exp42", "--yes", env=self.env)
+        status, out, _ = run_cli("cancel", "--tag", "exp42", "--yes", env=self.env)
 
         self.assertIn(f"would cancel {self.running}", preview)
         self.assertIs(before, JobState.RUNNING)
@@ -104,9 +104,9 @@ class CleanupCommandTest(unittest.TestCase):
         self.assertIs(self.backend.status([self.running])[self.running].state, JobState.CANCELLED)
 
     def test_clean_previews_and_needs_yes(self):
-        _, preview, _ = run_cli("clean", "--tag", "exp=exp42", "--policy", "on_success", env=self.env)
+        _, preview, _ = run_cli("clean", "--tag", "exp42", "--policy", "on_success", env=self.env)
         existed = os.path.exists(self.log)
-        status, out, _ = run_cli("clean", "--tag", "exp=exp42", "--policy", "on_success", "--yes", env=self.env)
+        status, out, _ = run_cli("clean", "--tag", "exp42", "--policy", "on_success", "--yes", env=self.env)
 
         self.assertIn(f"would delete {self.log}", preview)
         self.assertTrue(existed)
@@ -143,11 +143,11 @@ class StatusCommandTest(unittest.TestCase):
         self.assertEqual(rows[2], [self.failed, "FAILED", "3", "NonZeroExitCode"])
 
     def test_status_by_tag_shows_every_tracked_job_with_that_tag(self):
-        _, out, _ = run_cli("submit", "--tag", "exp=exp42", "--wrap", "true")
+        _, out, _ = run_cli("submit", "--tag", "exp42", "--wrap", "true")
         tagged = out.strip()
-        run_cli("submit", "--tag", "exp=other", "--wrap", "true")
+        run_cli("submit", "--tag", "other", "--wrap", "true")
 
-        status, out, _ = run_cli("status", "--tag", "exp=exp42")
+        status, out, _ = run_cli("status", "--tag", "exp42")
 
         self.assertEqual(status, 0)
         job_ids = [line.split()[0] for line in out.strip().splitlines()[1:]]
@@ -156,17 +156,17 @@ class StatusCommandTest(unittest.TestCase):
     def test_a_tag_that_matches_no_jobs_is_reported_plainly(self):
         for command in ("status", "wait"):
             with self.subTest(command=command):
-                status, _, err = run_cli(command, "--tag", "exp=nothing-has-this")
+                status, _, err = run_cli(command, "--tag", "nothing-has-this")
 
                 self.assertEqual(status, 1)
                 self.assertIn("no tracked jobs", err)
                 self.assertNotIn("Traceback", err)
 
-    def test_a_tag_without_a_value_is_a_usage_error(self):
-        status, _, err = run_cli("status", "--tag", "exp42")
+    def test_a_tag_that_is_not_a_single_word_is_a_usage_error(self):
+        status, _, err = run_cli("submit", "--tag", "two words", "--wrap", "true")
 
         self.assertEqual(status, 2)
-        self.assertIn("KEY=VALUE", err)
+        self.assertIn("single word", err)
 
     def test_wait_exits_zero_when_every_job_completed(self):
         self.backend.set_state(self.pending, JobState.COMPLETED, exit_code=0)

@@ -3,18 +3,18 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from . import DependencyType, InvalidAgeError, Job, JobSpec, JobStatus, TminusError, WaitTimeout, __version__, get_backend, jobs, prune, report, submit, wait_all
 from . import cleanup
 from .cleanup import Policy, parse_age
+from .spec import TAG_RULE, is_tag
 
 
-def _tag(text: str) -> Tuple[str, str]:
-    key, sep, value = text.partition("=")
-    if not sep or not key or not value:
-        raise argparse.ArgumentTypeError(f"expected KEY=VALUE, got {text!r}")
-    return key, value
+def _tag(text: str) -> str:
+    if not is_tag(text):
+        raise argparse.ArgumentTypeError(f"a tag must be {TAG_RULE}, got {text!r}")
+    return text
 
 
 def _age(text: str) -> float:
@@ -26,7 +26,7 @@ def _age(text: str) -> float:
 
 def _add_tag_option(parser: argparse.ArgumentParser, help_text: str) -> None:
     parser.add_argument(
-        "--tag", dest="tags", type=_tag, action="append", default=[], metavar="KEY=VALUE", help=help_text
+        "--tag", dest="tags", type=_tag, action="append", default=[], metavar="NAME", help=help_text
     )
 
 
@@ -64,7 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="ARG",
         help="extra sbatch argument, passed through as-is (repeatable), e.g. --sbatch-arg=--exclusive",
     )
-    _add_tag_option(submit_cmd, "label the job (repeatable), e.g. --tag exp=exp42")
+    _add_tag_option(submit_cmd, "label the job with a name (repeatable), e.g. --tag sweep3")
     submit_cmd.add_argument(
         "--depends-on", dest="depends_on", action="append", default=[], metavar="JOBID",
         help="only start after this job (repeatable); see --dependency-type",
@@ -111,7 +111,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "unless --yes is given.",
     )
     clean_cmd.add_argument("--tag", dest="tags", type=_tag, action="append", required=True,
-                           metavar="KEY=VALUE", help="select jobs with this tag (repeatable; all must match; needs TMINUS_DB)")
+                           metavar="NAME", help="select jobs with this tag (repeatable; all must match; needs TMINUS_DB)")
     clean_cmd.add_argument("--policy", choices=[p.value for p in Policy], default=Policy.ON_SUCCESS.value,
                            help="which finished jobs to clean up (default: on_success)")
     clean_cmd.add_argument("--yes", action="store_true", help="actually delete the files")
@@ -180,7 +180,7 @@ def _submit(args: argparse.Namespace) -> int:
         output=args.output,
         error=args.error,
         extra_args=args.extra_args,
-        tags=dict(args.tags),
+        tags=args.tags,
         depends_on=args.depends_on,
         dependency_type=args.dependency_type,
     )
@@ -220,7 +220,7 @@ def _cancel(args: argparse.Namespace) -> int:
         else:
             print(f"{job_id} already finished")
     if args.tags:
-        selected = cleanup.cancel(dict(args.tags), backend=backend, dry_run=not args.yes)
+        selected = cleanup.cancel(args.tags, backend=backend, dry_run=not args.yes)
         verb = "cancelled" if args.yes else "would cancel"
         for job_id in selected:
             print(f"{verb} {job_id}")
@@ -232,7 +232,7 @@ def _cancel(args: argparse.Namespace) -> int:
 
 
 def _clean(args: argparse.Namespace) -> int:
-    results = cleanup.purge(dict(args.tags), args.policy, dry_run=not args.yes)
+    results = cleanup.purge(args.tags, args.policy, dry_run=not args.yes)
     verb = "deleted" if args.yes else "would delete"
     count = 0
     for result in results:
@@ -279,7 +279,7 @@ def _report(args: argparse.Namespace) -> int:
 
 
 def _prune(args: argparse.Namespace) -> int:
-    removed = prune(args.older_than, tags=dict(args.tags) or None, dry_run=not args.yes)
+    removed = prune(args.older_than, tags=args.tags or None, dry_run=not args.yes)
     verb = "removed" if args.yes else "would remove"
     print(f"{verb} {len(removed)} record(s)" + (": " + " ".join(removed) if removed else ""))
     if removed and not args.yes:
@@ -292,12 +292,12 @@ def _selected_jobs(args: argparse.Namespace) -> List[Job]:
     backend = get_backend()
     selected = {job_id: Job(job_id, None, backend) for job_id in args.job_ids}
     if args.tags:
-        for job in jobs(tags=dict(args.tags), backend=backend):
+        for job in jobs(tags=args.tags, backend=backend):
             selected.setdefault(job.job_id, job)
     elif not selected:
         raise TminusError("give at least one JOBID or --tag")
     if not selected:
-        wanted = " ".join(f"{key}={value}" for key, value in args.tags)
+        wanted = " ".join(args.tags)
         raise TminusError(f"no tracked jobs have every tag in: {wanted}")
     return list(selected.values())
 

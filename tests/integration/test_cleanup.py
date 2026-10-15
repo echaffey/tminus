@@ -24,7 +24,7 @@ class CleanupTestCase(unittest.TestCase):
 
     def submit(self, state=None, tags=None, **fields):
         fields.setdefault("command", "true")
-        job = tminus.submit(tminus.JobSpec(tags=tags or {"exp": "exp42"}, **fields),
+        job = tminus.submit(tminus.JobSpec(tags=tags or ["exp42"], **fields),
                             backend=self.backend, store=self.store)
         if state is not None:
             self.backend.set_state(job.job_id, state)
@@ -38,9 +38,9 @@ class CancelByTagTest(CleanupTestCase):
     def test_every_active_job_with_the_tag_is_cancelled_in_one_call(self):
         pending, running = self.submit(), self.submit(JobState.RUNNING)
         done = self.submit(JobState.COMPLETED)
-        other = self.submit(JobState.RUNNING, tags={"exp": "other"})
+        other = self.submit(JobState.RUNNING, tags=["other"])
 
-        cancelled = tminus.cleanup.cancel({"exp": "exp42"}, backend=self.backend, store=self.store)
+        cancelled = tminus.cleanup.cancel(["exp42"], backend=self.backend, store=self.store)
 
         self.assertEqual(cancelled, [pending.job_id, running.job_id])
         self.assertIs(self.state_of(pending), JobState.CANCELLED)
@@ -51,7 +51,7 @@ class CancelByTagTest(CleanupTestCase):
     def test_a_dry_run_cancels_nothing(self):
         pending = self.submit()
 
-        cancelled = tminus.cleanup.cancel({"exp": "exp42"}, backend=self.backend, store=self.store, dry_run=True)
+        cancelled = tminus.cleanup.cancel(["exp42"], backend=self.backend, store=self.store, dry_run=True)
 
         self.assertEqual(cancelled, [pending.job_id])
         self.assertIs(self.state_of(pending), JobState.PENDING)
@@ -70,7 +70,7 @@ class PurgeTest(CleanupTestCase):
         return job, paths
 
     def purge(self, policy, **options):
-        return tminus.cleanup.purge({"exp": "exp42"}, policy, backend=self.backend, store=self.store, **options)
+        return tminus.cleanup.purge(["exp42"], policy, backend=self.backend, store=self.store, **options)
 
     def test_each_policy_deletes_exactly_the_expected_jobs_files(self):
         expectations = {

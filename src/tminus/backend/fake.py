@@ -7,7 +7,7 @@ import tempfile
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..errors import JobNotFound
-from ..spec import DependencyType, JobSpec
+from ..spec import DependencyType, JobSpec, legacy_tags
 from ..report import JobUsage
 from ..state import JobState, JobStatus
 from .base import Backend
@@ -54,10 +54,10 @@ class FakeBackend(Backend):
         if spec.array is not None:
             self._arrays[job_id] = ids
         for one_id in ids:
-            self._statuses[one_id] = JobStatus(one_id, JobState.PENDING, tags=dict(spec.tags))
+            self._statuses[one_id] = JobStatus(one_id, JobState.PENDING, tags=list(spec.tags))
             if spec.depends_on:
                 self._dependencies[one_id] = (spec.dependency_type.value, list(spec.depends_on))
-                self._statuses[one_id] = JobStatus(one_id, JobState.PENDING, "Dependency", tags=dict(spec.tags))
+                self._statuses[one_id] = JobStatus(one_id, JobState.PENDING, "Dependency", tags=list(spec.tags))
         self._check_dependencies()
         self._save()
         return job_id
@@ -180,7 +180,7 @@ def _status_to_json(status: JobStatus) -> Dict[str, Any]:
 
 def _status_from_json(job_id: str, raw: Dict[str, Any]) -> JobStatus:
     return JobStatus(job_id, JobState(raw["state"]), raw.get("reason"),
-                     raw.get("exit_code"), raw.get("tags") or {})
+                     raw.get("exit_code"), legacy_tags(raw.get("tags")) or [])
 
 
 def _dependency_verdict(kind: DependencyType, dependencies: List[Optional[JobStatus]]) -> Optional[bool]:

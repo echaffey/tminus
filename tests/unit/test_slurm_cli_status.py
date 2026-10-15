@@ -55,10 +55,10 @@ class SlurmCliStatusTest(unittest.TestCase):
 
                 statuses = SlurmCliBackend(runner=runner).status(["1001", "1002", "1003", "1004"])
 
-                self.assertEqual(statuses["1001"].tags, {"exp": "exp42", "run": "1"})
-                self.assertEqual(statuses["1002"].tags, {})  # an ordinary, non-tminus comment
-                self.assertEqual(statuses["1003"].tags, {"exp": "exp42"})
-                self.assertEqual(statuses["1004"].tags, {})
+                self.assertEqual(statuses["1001"].tags, ["exp42", "run1"])
+                self.assertEqual(statuses["1002"].tags, [])  # an ordinary, non-tminus comment
+                self.assertEqual(statuses["1003"].tags, ["exp=exp42"])  # written by tminus 0.1.0
+                self.assertEqual(statuses["1004"].tags, [])
 
     def test_sacct_is_not_called_when_squeue_knows_every_job(self):
         runner = self.runner(FIXTURE_VERSIONS[0])

@@ -27,7 +27,7 @@
       "array_job_id": 0,
       "cpus": 4,
       "time_limit": 120,
-      "comment": "tminus:exp=exp42,run=1"
+      "comment": "tminus:exp42,run1"
     },
     {
       "account": "lab",
@@ -55,7 +55,7 @@
       "array_job_id": 2000,
       "array_task_id": 2,
       "array_task_string": "",
-      "comment": "tminus:exp=arrays"
+      "comment": "tminus:arrays"
     },
     {
       "account": "lab",
@@ -69,7 +69,7 @@
       "array_job_id": 2000,
       "array_task_id": null,
       "array_task_string": "3%2",
-      "comment": "tminus:exp=arrays"
+      "comment": "tminus:arrays"
     }
   ]
 }

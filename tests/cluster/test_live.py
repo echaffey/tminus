@@ -52,7 +52,7 @@ class LiveClusterTest(unittest.TestCase):
         os.makedirs(cls.workdir)
         cls.store = Store(os.path.join(cls.workdir, "jobs.db"))
         cls.backend = SlurmCliBackend()
-        cls.tags = {"tminus-live": cls.run_id}
+        cls.tags = ["tminus-live-" + cls.run_id]
 
     @classmethod
     def tearDownClass(cls):
@@ -78,7 +78,7 @@ class LiveClusterTest(unittest.TestCase):
                 fields.setdefault(name, os.environ[variable])
         extra = shlex.split(os.environ.get("TMINUS_LIVE_SBATCH_ARGS", ""))
         fields["extra_args"] = extra + list(fields.get("extra_args", []))
-        fields["tags"] = dict(self.tags, **fields.get("tags", {}))
+        fields["tags"] = self.tags + list(fields.get("tags", []))
         return tminus.JobSpec(command=command, **fields)
 
     def submit(self, command, **fields):
@@ -157,10 +157,10 @@ class LiveClusterTest(unittest.TestCase):
         self.assertEqual(events, ["update", "release", "cancel"])
 
     def test_cleanup_by_tag_cancels_active_jobs_and_purges_successful_logs(self):
-        tags = {"step": "cleanup"}
+        tags = ["cleanup"]
         quick = self.submit("echo hello", tags=tags)
         sleeper = self.submit("sleep 600", tags=tags)
-        group = dict(self.tags, **tags)
+        group = self.tags + tags
         self.wait(quick)
 
         cancelled = tminus.cleanup.cancel(group, backend=self.backend, store=self.store)
@@ -187,14 +187,14 @@ class LiveClusterTest(unittest.TestCase):
         self.assertTrue(all(job.status.state is JobState.COMPLETED for job in jobs))
 
     def test_prune_forgets_finished_jobs_but_keeps_active_ones(self):
-        tags = {"step": "prune"}
+        tags = ["prune"]
         done = self.submit("true", tags=tags)
         active = self.submit("sleep 600", tags=tags)
         self.wait(done)
         time.sleep(1)
 
-        removed = tminus.prune(0, tags=dict(self.tags, **tags), backend=self.backend, store=self.store)
-        remaining = [job.job_id for job in tminus.jobs(tags=dict(self.tags, **tags), backend=self.backend,
+        removed = tminus.prune(0, tags=self.tags + tags, backend=self.backend, store=self.store)
+        remaining = [job.job_id for job in tminus.jobs(tags=self.tags + tags, backend=self.backend,
                                                        store=self.store)]
         active.cancel(store=self.store)
 

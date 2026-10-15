@@ -26,7 +26,7 @@ from .job import Job
 from . import aio
 from .monitor import PollPolicy, wait_all
 from .report import JobUsage, Report
-from .spec import DependencyType, JobSpec
+from .spec import DependencyType, JobSpec, Tags
 from .state import JobState, JobStatus
 from .store import Store, default_store, require_store
 
@@ -87,7 +87,7 @@ def submit(spec: JobSpec, backend: Optional[Backend] = None, store: Optional[Sto
 
 
 def jobs(
-    tags: Optional[Dict[str, str]] = None,
+    tags: Tags = None,
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,
 ) -> List[Job]:
@@ -115,7 +115,7 @@ def status(job_ids: Sequence[str], backend: Optional[Backend] = None) -> Dict[st
 
 
 def report(
-    tags: Optional[Dict[str, str]] = None,
+    tags: Tags = None,
     jobs: Optional[Sequence[Job]] = None,
     backend: Optional[Backend] = None,
     store: Optional[Store] = None,

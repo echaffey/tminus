@@ -25,15 +25,15 @@ class ReportApiTest(unittest.TestCase):
         return tminus.submit(tminus.JobSpec(**fields), backend=self.backend, store=self.store)
 
     def test_a_report_by_tag_covers_exactly_the_tagged_jobs(self):
-        done = self.submit(tags={"exp": "exp42"})
+        done = self.submit(tags=["exp42"])
         self.backend.set_state(done.job_id, JobState.COMPLETED, exit_code=0)
         self.backend.set_usage(done.job_id, elapsed=100, time_limit=200, cpu_seconds=80, cpus=1,
                                peak_memory=GIB, requested_memory=2 * GIB)
-        running = self.submit(tags={"exp": "exp42"})
+        running = self.submit(tags=["exp42"])
         self.backend.set_state(running.job_id, JobState.RUNNING)
-        self.submit(tags={"exp": "other"})
+        self.submit(tags=["other"])
 
-        report = tminus.report(tags={"exp": "exp42"}, backend=self.backend, store=self.store)
+        report = tminus.report(tags=["exp42"], backend=self.backend, store=self.store)
 
         self.assertEqual([u.job_id for u in report.jobs], [done.job_id, running.job_id])
         self.assertAlmostEqual(report.jobs[0].cpu_efficiency, 0.8)

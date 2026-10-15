@@ -24,7 +24,7 @@ class PruneTest(unittest.TestCase):
 
     def submit_at(self, day, state=None, tags=None):
         self.now = day * DAY
-        job = tminus.submit(tminus.JobSpec(command="true", tags=tags or {}), backend=self.backend, store=self.store)
+        job = tminus.submit(tminus.JobSpec(command="true", tags=tags or []), backend=self.backend, store=self.store)
         if state is not None:
             self.backend.set_state(job.job_id, state)
         return job
@@ -64,10 +64,10 @@ class PruneTest(unittest.TestCase):
         self.assertEqual(removed, [forgotten.job_id])
 
     def test_a_tag_limits_pruning_to_matching_jobs(self):
-        exp = self.submit_at(1, JobState.COMPLETED, tags={"exp": "exp42"})
-        other = self.submit_at(1, JobState.COMPLETED, tags={"exp": "other"})
+        exp = self.submit_at(1, JobState.COMPLETED, tags=["exp42"])
+        other = self.submit_at(1, JobState.COMPLETED, tags=["other"])
 
-        removed = self.prune("30d", tags={"exp": "exp42"})
+        removed = self.prune("30d", tags=["exp42"])
 
         self.assertEqual(removed, [exp.job_id])
         self.assertEqual(self.tracked_ids(), [other.job_id])

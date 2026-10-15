@@ -5,12 +5,13 @@ import dataclasses
 import enum
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from .errors import InvalidSpecError
 
-# Tag keys and values are single words so they survive the trip through Slurm's --comment.
-_TAG_WORD = re.compile(r"^[A-Za-z0-9_.:/@+-]+$")
+# Tags are single words so they survive the trip through Slurm's --comment.
+_TAG_WORD = re.compile(r"^[A-Za-z0-9_.:/@+=-]+$")
+TAG_RULE = "a single word of letters, digits, and _ . : / @ + - ="
 _COMMENT_PREFIX = "tminus:"
 # An sbatch --array value: comma-separated N, N-M, or N-M:STEP items, optionally ending in %LIMIT.
 _ARRAY_ITEM = r"\d+(?:-\d+(?::[1-9]\d*)?)?"
@@ -37,20 +38,55 @@ def expand_array(text: str) -> List[str]:
     return task_ids
 
 
-def tags_to_comment(tags: Dict[str, str]) -> str:
-    """Encode tags as a Slurm job comment, e.g. ``tminus:exp=exp42,run=1``."""
-    return _COMMENT_PREFIX + ",".join(f"{key}={value}" for key, value in sorted(tags.items()))
+# A tag, a list of tags, or none: what every ``tags=`` argument accepts.
+Tags = Union[None, str, Iterable[str]]
 
 
-def tags_from_comment(comment: str) -> Dict[str, str]:
-    """Decode tags from a job comment; any comment tminus did not write yields no tags."""
+def normalize_tags(tags: Tags) -> List[str]:
+    """``tags`` as a list of names in their original order, without repeats.
+
+    A single string is one tag. Raises InvalidSpecError for a name that is not
+    a single word, and for a dict (tags are names, not key/value pairs).
+    """
+    if tags is None:
+        return []
+    if isinstance(tags, str):
+        tags = [tags]
+    elif isinstance(tags, dict):
+        raise InvalidSpecError(f"tags are plain names, not key/value pairs: give a list such as {list(tags)!r}")
+    names: List[str] = []
+    for tag in tags:
+        if not (isinstance(tag, str) and _TAG_WORD.match(tag)):
+            raise InvalidSpecError(f"tag {tag!r} is not allowed: a tag must be {TAG_RULE}")
+        if tag not in names:
+            names.append(tag)
+    return names
+
+
+def is_tag(text: str) -> bool:
+    """True if ``text`` can be used as a tag."""
+    return bool(_TAG_WORD.match(text))
+
+
+def tags_to_comment(tags: List[str]) -> str:
+    """Encode tags as a Slurm job comment, e.g. ``tminus:sweep3,train``."""
+    return _COMMENT_PREFIX + ",".join(tags)
+
+
+def tags_from_comment(comment: str) -> List[str]:
+    """Decode tags from a job comment; any comment tminus did not write yields no tags.
+
+    Comments written by tminus 0.1.0 (``tminus:exp=exp42``) decode to names such as ``exp=exp42``.
+    """
     if not comment.startswith(_COMMENT_PREFIX):
-        return {}
-    tags = {}
-    for pair in comment[len(_COMMENT_PREFIX):].split(","):
-        key, sep, value = pair.partition("=")
-        if sep and _TAG_WORD.match(key) and _TAG_WORD.match(value):
-            tags[key] = value
+        return []
+    return normalize_tags(name for name in comment[len(_COMMENT_PREFIX):].split(",") if _TAG_WORD.match(name))
+
+
+def legacy_tags(tags: Any) -> Any:
+    """Tags as tminus 0.1.0 saved them (a key/value dict) turned into ``key=value`` names."""
+    if isinstance(tags, dict):
+        return [f"{key}={value}" for key, value in sorted(tags.items())]
     return tags
 
 
@@ -71,8 +107,9 @@ class JobSpec:
     ``script`` (the path of a batch script) must be given. Every other field is
     optional and is left to the cluster's defaults when unset. ``extra_args``
     passes additional ``sbatch`` arguments through untouched. ``tags`` are
-    key/value labels used to find and group jobs later; keys and values are
-    single words (letters, digits, and ``_ . : / @ + -``). ``depends_on``
+    names used to find and group jobs later (a list, or one string for a
+    single tag); each is a single word of letters, digits, and
+    ``_ . : / @ + - =``. ``depends_on``
     lists jobs (Job handles or job ids) that must reach the condition in
     ``dependency_type`` (default: afterok) before this one may start.
     ``array`` makes this an array job (sbatch ``--array``, e.g. ``0-9%4``).
@@ -96,7 +133,7 @@ class JobSpec:
     output: Optional[str] = None
     error: Optional[str] = None
     extra_args: List[str] = field(default_factory=list)
-    tags: Dict[str, str] = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
     depends_on: List[Any] = field(default_factory=list)
     dependency_type: DependencyType = DependencyType.AFTEROK
     scratch_paths: List[str] = field(default_factory=list)
@@ -126,12 +163,7 @@ class JobSpec:
                     f"invalid array {self.array!r}: expected items like 0-9, 1,3,5, or 0-15:4, "
                     "optionally ending in %LIMIT"
                 )
-        for key, value in self.tags.items():
-            if not (_TAG_WORD.match(key) and _TAG_WORD.match(value)):
-                raise InvalidSpecError(
-                    f"tag {key}={value} is not allowed: keys and values must be single words "
-                    "of letters, digits, and _ . : / @ + -"
-                )
+        object.__setattr__(self, "tags", normalize_tags(self.tags))
 
     def task_ids(self) -> List[str]:
         """The array task ids this spec asks for, in order (empty if it is not an array job)."""
@@ -147,4 +179,7 @@ class JobSpec:
     def from_dict(cls, data: Dict[str, Any]) -> "JobSpec":
         """Rebuild a JobSpec from ``to_dict`` output, ignoring fields this version does not know."""
         known = {f.name for f in dataclasses.fields(cls)}
-        return cls(**{key: value for key, value in data.items() if key in known})
+        fields = {key: value for key, value in data.items() if key in known}
+        if "tags" in fields:
+            fields["tags"] = legacy_tags(fields["tags"])
+        return cls(**fields)

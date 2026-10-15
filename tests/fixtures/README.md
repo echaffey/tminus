@@ -10,9 +10,9 @@ Every set contains the same jobs:
 
 | Job | Where | State | Comment |
 | --- | --- | --- | --- |
-| 1001 | squeue | RUNNING | `tminus:exp=exp42,run=1` |
+| 1001 | squeue | RUNNING | `tminus:exp42,run1` |
 | 1002 | squeue | PENDING (Priority) | an ordinary user comment |
-| 1003 | sacct | COMPLETED, exit 0 | `tminus:exp=exp42` |
+| 1003 | sacct | COMPLETED, exit 0 | `tminus:exp=exp42` (as tminus 0.1.0 wrote tags) |
 | 1004 | sacct | FAILED, exit 3 | none |
 | 1005 | sacct | TIMEOUT | none |
 
@@ -25,7 +25,7 @@ Accounting figures in `sacct.json` (efficiencies are checked against these by ha
 | 1005 | 3600 s | 60 min | 0 s | 1 | 1 | 1 GiB | none sampled | 0% | unavailable | 100% |
 | 2010_0, 2010_1 | 100 s | 10 min | 50 s | 1 | 1 | 1 GiB | 512 MiB | 50% | 50% | 16.7% |
 
-Array jobs (all tagged `tminus:exp=arrays`):
+Array jobs (all tagged `tminus:arrays`):
 
 | Array | Task | Where | State |
 | --- | --- | --- | --- |

@@ -18,10 +18,10 @@ import os
 import sqlite3
 import time
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Callable, Iterator, List, Optional, Sequence, Tuple
 
 from .errors import StoreNotEnabled
-from .spec import JobSpec
+from .spec import JobSpec, Tags, normalize_tags
 from .state import JobState, JobStatus
 
 # Each entry upgrades the schema by one version; PRAGMA user_version records how many ran.
@@ -64,6 +64,18 @@ _MIGRATIONS = [
     """,
     """
     ALTER TABLE jobs ADD COLUMN submit_dir TEXT;
+    """,
+    # Tags became plain names; key/value tags from tminus 0.1.0 become "key=value" names.
+    """
+    CREATE TABLE tag_names (
+        job  INTEGER NOT NULL REFERENCES jobs (id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        PRIMARY KEY (job, name)
+    );
+    INSERT INTO tag_names (job, name) SELECT job, key || '=' || value FROM tags;
+    DROP TABLE tags;
+    ALTER TABLE tag_names RENAME TO tags;
+    CREATE INDEX tags_by_name ON tags (name);
     """,
 ]
 
@@ -140,17 +152,17 @@ class Store:
                 (backend, job_id, json.dumps(spec.to_dict(), sort_keys=True), self._clock(), submit_dir),
             )
             db.executemany(
-                "INSERT INTO tags (job, key, value) VALUES (?, ?, ?)",
-                [(cursor.lastrowid, key, value) for key, value in sorted(spec.tags.items())],
+                "INSERT INTO tags (job, name) VALUES (?, ?)",
+                [(cursor.lastrowid, name) for name in spec.tags],
             )
 
-    def find(self, backend: str, tags: Optional[Dict[str, str]] = None) -> List[TrackedJob]:
+    def find(self, backend: str, tags: Tags = None) -> List[TrackedJob]:
         """Every job on ``backend`` carrying all of ``tags``, oldest first."""
         sql = "SELECT job_id, spec, submit_dir FROM jobs WHERE backend = ?"
         params: list = [backend]
-        for key, value in sorted((tags or {}).items()):
-            sql += " AND id IN (SELECT job FROM tags WHERE key = ? AND value = ?)"
-            params += [key, value]
+        for name in normalize_tags(tags):
+            sql += " AND id IN (SELECT job FROM tags WHERE name = ?)"
+            params.append(name)
         sql += " ORDER BY id"
         with self._transaction() as db:
             rows = db.execute(sql, params).fetchall()
@@ -197,7 +209,7 @@ class Store:
         return self._clock()
 
     def submitted_before(
-        self, backend: str, cutoff: float, tags: Optional[Dict[str, str]] = None
+        self, backend: str, cutoff: float, tags: Tags = None
     ) -> List[Tuple[str, Optional[JobState]]]:
         """``(job_id, last recorded state or None)`` for jobs on ``backend`` submitted before
         ``cutoff`` and carrying all of ``tags``, oldest first."""
@@ -207,9 +219,9 @@ class Store:
             " FROM jobs j WHERE j.backend = ? AND j.submitted_at < ?"
         )
         params: list = [backend, cutoff]
-        for key, value in sorted((tags or {}).items()):
-            sql += " AND j.id IN (SELECT job FROM tags WHERE key = ? AND value = ?)"
-            params += [key, value]
+        for name in normalize_tags(tags):
+            sql += " AND j.id IN (SELECT job FROM tags WHERE name = ?)"
+            params.append(name)
         sql += " ORDER BY j.id"
         with self._transaction() as db:
             rows = db.execute(sql, params).fetchall()
