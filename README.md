@@ -120,7 +120,11 @@ print(job.refresh().state)   # JobState.COMPLETED
 python -m unittest        # from the repository root; standard library only
 ```
 
-The suite includes a check that every source file stays compatible with Python 3.7.
+The suite includes a check that every source file stays compatible with Python 3.7. On a Slurm login node, an end-to-end suite submits a handful of tiny jobs and exercises the whole lifecycle (it cleans up after itself; see the top of `tests/cluster/test_live.py` for settings such as partition and account):
+
+```bash
+TMINUS_LIVE=1 python -m unittest tests.cluster.test_live -v
+```
 
 ## License
 
